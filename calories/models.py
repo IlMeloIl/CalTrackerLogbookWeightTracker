@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth import get_user_model
+from decimal import Decimal
+
 
 User = get_user_model()
 
@@ -20,6 +22,31 @@ class DailyLog(models.Model):
     food = models.ForeignKey(Food, on_delete=models.CASCADE)
     quantity_grams = models.DecimalField(max_digits=7, decimal_places=2, help_text="Quantidade consumida em gramas")
     date = models.DateField(auto_now_add=True, help_text="Data do registro")
+
+    def __str__(self):
+        return f"{self.user.username} - {self.food.name} em {self.date}"
+
+    @property
+    def nutritional_factor(self):
+        if self.food.serving_size_grams > 0:
+            return self.quantity_grams / self.food.serving_size_grams
+        return Decimal(0)
+
+    @property
+    def calculated_calories(self):
+        return round(self.food.calories * self.nutritional_factor)
+
+    @property
+    def calculated_protein(self):
+        return (self.food.protein * self.nutritional_factor).quantize(Decimal('0.01'))
+
+    @property
+    def calculated_carbs(self):
+        return (self.food.carbs * self.nutritional_factor).quantize(Decimal('0.01'))
+
+    @property
+    def calculated_fat(self):
+        return (self.food.fat * self.nutritional_factor).quantize(Decimal('0.01'))
 
     def __str__(self):
         return f"{self.user.username} - {self.food.name} em {self.date}"

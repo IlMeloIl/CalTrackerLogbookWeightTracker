@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Meus Alimentos - {{ block.super }}{% endblock %}
+
+{% block content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Meus Alimentos</h1>
+    <a href="{% url 'calories:food_add' %}" class="btn btn-primary">Adicionar Alimento</a>
+  </div>
+
+  {% if foods %}
+    <ul class="list-group">
+      {% for food in foods %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <div>
+            <strong>{{ food.name }}</strong>
+            <small class="text-muted">({{ food.serving_size_grams|floatformat:"0" }}g) - {{ food.calories }} kcal</small>
+          </div>
+          <div>
+            <a href="{% url 'calories:food_edit' food.pk %}" class="btn btn-sm btn-secondary">Editar</a>
+            <a href="{% url 'calories:food_delete' food.pk %}" class="btn btn-sm btn-danger">Excluir</a>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>Você ainda não cadastrou nenhum alimento. <a href="{% url 'calories:food_add' %}">Adicione o primeiro!</a></p>
+  {% endif %}
+{% endblock %}
