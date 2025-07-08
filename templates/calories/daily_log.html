@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Meu Dia - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-md-4">
+    <h3>Resumo de Hoje ({{ date|date:"d/m/Y" }})</h3>
+    <div class="card mb-4">
+      <div class="card-body">
+        <h5 class="card-title">{{ total_calories }} kcal</h5>
+        <p class="card-text">
+          <strong>Proteínas:</strong> {{ total_protein|floatformat:"1" }}g<br>
+          <strong>Carboidratos:</strong> {{ total_carbs|floatformat:"1" }}g<br>
+          <strong>Gorduras:</strong> {{ total_fat|floatformat:"1" }}g
+        </p>
+      </div>
+    </div>
+
+    <h4>Adicionar ao Diário</h4>
+    <div class="card">
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          <div class="mb-3">
+            {{ form.food.label_tag }}
+            {{ form.food }}
+            {% if form.food.errors %}<div class="invalid-feedback d-block">{{ form.food.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="mb-3">
+            {{ form.quantity_grams.label_tag }}
+            {{ form.quantity_grams }}
+            {% if form.quantity_grams.errors %}<div class="invalid-feedback d-block">{{ form.quantity_grams.errors.0 }}</div>{% endif %}
+          </div>
+          <button type="submit" class="btn btn-primary w-100">Adicionar</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-8">
+    <h3>Alimentos Consumidos Hoje</h3>
+    {% if daily_logs %}
+      <ul class="list-group">
+        {% for log in daily_logs %}
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <strong>{{ log.food.name }}</strong> - {{ log.quantity_grams|floatformat:"0" }}g
+              <div class="text-muted small">
+                {{ log.calculated_calories }} kcal | 
+                P: {{ log.calculated_protein|floatformat:"1" }}g, 
+                C: {{ log.calculated_carbs|floatformat:"1" }}g, 
+                F: {{ log.calculated_fat|floatformat:"1" }}g
+              </div>
+            </div>
+            <a href="{% url 'calories:daily_log_delete' log.pk %}" class="btn btn-outline-danger btn-sm">
+              &times;
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p>Nenhum alimento registrado hoje. Adicione um ao lado!</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

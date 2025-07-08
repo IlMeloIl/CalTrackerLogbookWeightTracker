@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block title %}Confirmar Exclusão - {{ block.super }}{% endblock %}
+
+{% block content %}
+  <h2>Confirmar Exclusão</h2>
+  <p>Você tem certeza que deseja excluir o alimento "<strong>{{ object.name }}</strong>"?</p>
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-danger">Sim, excluir</button>
+    <a href="{% url 'calories:food_list' %}" class="btn btn-secondary">Cancelar</a>
+  </form>
+{% endblock %}
