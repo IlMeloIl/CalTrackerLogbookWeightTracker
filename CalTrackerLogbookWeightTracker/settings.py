@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'users.apps.UsersConfig',
     'calories.apps.CaloriesConfig',
+    'weight.apps.WeightConfig',
 ]
 
 MIDDLEWARE = [
