@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'users.apps.UsersConfig',
     'calories.apps.CaloriesConfig',
     'weight.apps.WeightConfig',
+    'logbook.apps.LogbookConfig',
 ]
 
 MIDDLEWARE = [

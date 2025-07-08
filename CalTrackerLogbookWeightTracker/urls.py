@@ -22,4 +22,5 @@ urlpatterns = [
     path('', include('users.urls')),
     path('tracker/', include('calories.urls', namespace='calories')),
     path('weight/', include('weight.urls', namespace='weight')),
+    path('logbook/', include('logbook.urls', namespace='logbook')),
 ]

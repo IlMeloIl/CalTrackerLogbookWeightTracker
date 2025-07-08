@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Minhas Rotinas - {{ block.super }}{% endblock %}
+
+{% block content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Minhas Rotinas</h1>
+    <a href="{% url 'logbook:routine_add' %}" class="btn btn-primary">Nova Rotina</a>
+  </div>
+
+  {% if routines %}
+    <div class="row">
+    {% for routine in routines %}
+    <div class="col-md-6 col-lg-4 mb-4">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">{{ routine.name }}</h5>
+          <p class="card-text text-muted">
+            {{ routine.routine_exercises.count }} exercício{{ routine.routine_exercises.count|pluralize }}
+          </p>
+          <p class="card-text">
+            <small class="text-muted">Criada em {{ routine.created_at|date:"d/m/Y" }}</small>
+          </p>
+          
+          {% if routine.routine_exercises.count > 0 %}
+          <a href="{% url 'logbook:start_workout' routine.pk %}" class="btn btn-success w-100 mb-3">
+            <i class="bi bi-play-circle"></i> Iniciar Treino
+          </a>
+        {% else %}
+          <div class="alert alert-warning py-2 mb-3">
+            <small><i class="bi bi-exclamation-triangle"></i> Adicione exercícios para iniciar treino</small>
+          </div>
+        {% endif %}
+          
+          <div class="btn-group w-100" role="group">
+            <a href="{% url 'logbook:routine_detail' routine.pk %}" class="btn btn-primary">Ver</a>
+            <a href="{% url 'logbook:routine_edit' routine.pk %}" class="btn btn-secondary">Editar</a>
+            <a href="{% url 'logbook:routine_delete' routine.pk %}" class="btn btn-danger">Excluir</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+    </div>
+  {% else %}
+    <div class="text-center py-5">
+      <i class="bi bi-journal-bookmark display-1 text-muted"></i>
+      <h3 class="mt-3">Nenhuma rotina criada</h3>
+      <p class="text-muted">Crie sua primeira rotina de treino!</p>
+      <a href="{% url 'logbook:routine_add' %}" class="btn btn-primary">Criar Primeira Rotina</a>
+    </div>
+  {% endif %}
+{% endblock %}
