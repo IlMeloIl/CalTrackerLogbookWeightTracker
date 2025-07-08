@@ -1,5 +1,5 @@
 from django import forms
-from .models import Routine, Exercise, RoutineExercise
+from .models import Routine, Exercise, RoutineExercise, WorkoutSession, SetLog
 
 class RoutineForm(forms.ModelForm):
     class Meta:
@@ -45,3 +45,29 @@ class RoutineExerciseForm(forms.ModelForm):
             self.fields['exercise'].queryset = Exercise.objects.filter(
                 models.Q(user=user) | models.Q(user=None)
             )
+
+class WorkoutSessionForm(forms.ModelForm):
+    class Meta:
+        model = WorkoutSession
+        fields = ['notes']
+        widgets = {
+            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Notas sobre o treino (opcional)'}),
+        }
+        labels = {
+            'notes': 'Notas',
+        }
+
+class SetLogForm(forms.ModelForm):
+    class Meta:
+        model = SetLog
+        fields = ['weight', 'reps', 'notes']
+        widgets = {
+            'weight': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.5', 'min': '0'}),
+            'reps': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
+            'notes': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Notas (opcional)'}),
+        }
+        labels = {
+            'weight': 'Peso (kg)',
+            'reps': 'Repetições',
+            'notes': 'Notas',
+        }
