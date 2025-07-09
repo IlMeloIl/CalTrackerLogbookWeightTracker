@@ -10,26 +10,41 @@
 
   {% if routines %}
     <div class="row">
-      {% for routine in routines %}
-        <div class="col-md-6 col-lg-4 mb-4">
-          <div class="card">
-            <div class="card-body">
-              <h5 class="card-title">{{ routine.name }}</h5>
-              <p class="card-text text-muted">
-                {{ routine.routine_exercises.count }} exercício{{ routine.routine_exercises.count|pluralize }}
-              </p>
-              <p class="card-text">
-                <small class="text-muted">Criada em {{ routine.created_at|date:"d/m/Y" }}</small>
-              </p>
-              <div class="btn-group w-100" role="group">
-                <a href="{% url 'logbook:routine_detail' routine.pk %}" class="btn btn-primary">Ver</a>
-                <a href="{% url 'logbook:routine_edit' routine.pk %}" class="btn btn-secondary">Editar</a>
-                <a href="{% url 'logbook:routine_delete' routine.pk %}" class="btn btn-danger">Excluir</a>
-              </div>
-            </div>
+    {% for routine in routines %}
+    <div class="col-md-6 col-lg-4 mb-4">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">{{ routine.name }}</h5>
+          <p class="card-text text-muted">
+            {{ routine.routine_exercises.count }} exercício{{ routine.routine_exercises.count|pluralize }}
+          </p>
+          <p class="card-text">
+            <small class="text-muted">Criada em {{ routine.created_at|date:"d/m/Y" }}</small>
+          </p>
+          
+          <!-- Botão de Iniciar Treino -->
+          {% if routine.routine_exercises.count > 0 %}
+          <form method="post" action="{% url 'logbook:start_workout' routine.pk %}" class="mb-3">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-success w-100">
+              <i class="bi bi-play-circle"></i> Iniciar Treino
+            </button>
+          </form>
+          {% else %}
+          <div class="alert alert-warning py-2 mb-3">
+            <small><i class="bi bi-exclamation-triangle"></i> Adicione exercícios para iniciar treino</small>
+          </div>
+          {% endif %}
+          
+          <div class="btn-group w-100" role="group">
+            <a href="{% url 'logbook:routine_detail' routine.pk %}" class="btn btn-primary">Ver</a>
+            <a href="{% url 'logbook:routine_edit' routine.pk %}" class="btn btn-secondary">Editar</a>
+            <a href="{% url 'logbook:routine_delete' routine.pk %}" class="btn btn-danger">Excluir</a>
           </div>
         </div>
-      {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
     </div>
   {% else %}
     <div class="text-center py-5">
