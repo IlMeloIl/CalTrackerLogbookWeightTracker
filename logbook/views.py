@@ -1,4 +1,4 @@
-from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
+from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView, TemplateView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
 from django.shortcuts import get_object_or_404, redirect
@@ -10,9 +10,11 @@ from django.http import JsonResponse
 from django.views import View
 from django.db import models, transaction
 from django.utils import timezone
-from datetime import date
+from datetime import date, timedelta
 from .models import Routine, Exercise, RoutineExercise, WorkoutSession, SetLog
 from .forms import RoutineForm, ExerciseForm, RoutineExerciseForm, WorkoutSessionForm, SetLogForm
+from django.db.models import Count, Sum, Q
+
 
 class RoutineListView(LoginRequiredMixin, ListView):
     model = Routine
@@ -28,9 +30,20 @@ class RoutineCreateView(LoginRequiredMixin, CreateView):
     template_name = 'logbook/routine_form.html'
     success_url = reverse_lazy('logbook:routine_list')
     
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+    
     def form_valid(self, form):
-        form.instance.user = self.request.user
-        return super().form_valid(form)
+        try:
+            form.instance.user = self.request.user
+            response = super().form_valid(form)
+            messages.success(self.request, f'Rotina "{form.instance.name}" criada com sucesso!')
+            return response
+        except IntegrityError:
+            messages.error(self.request, 'Você já tem uma rotina com este nome.')
+            return self.form_invalid(form)
 
 class RoutineUpdateView(LoginRequiredMixin, UpdateView):
     model = Routine
@@ -40,6 +53,20 @@ class RoutineUpdateView(LoginRequiredMixin, UpdateView):
     
     def get_queryset(self):
         return Routine.objects.filter(user=self.request.user)
+    
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+    
+    def form_valid(self, form):
+        try:
+            response = super().form_valid(form)
+            messages.success(self.request, f'Rotina "{form.instance.name}" atualizada com sucesso!')
+            return response
+        except IntegrityError:
+            messages.error(self.request, 'Você já tem uma rotina com este nome.')
+            return self.form_invalid(form)
 
 class RoutineDeleteView(LoginRequiredMixin, DeleteView):
     model = Routine
@@ -48,43 +75,23 @@ class RoutineDeleteView(LoginRequiredMixin, DeleteView):
     
     def get_queryset(self):
         return Routine.objects.filter(user=self.request.user)
-
-class ExerciseListView(LoginRequiredMixin, ListView):
-    model = Exercise
-    template_name = 'logbook/exercise_list.html'
-    context_object_name = 'exercises'
     
-    def get_queryset(self):
-        return Exercise.objects.filter(
-            models.Q(user=self.request.user) | models.Q(user=None)
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        
+        # Verificar se há treinos ativos usando esta rotina
+        active_sessions = WorkoutSession.objects.filter(
+            routine=self.object,
+            status='active'
         )
-
-class ExerciseCreateView(LoginRequiredMixin, CreateView):
-    model = Exercise
-    form_class = ExerciseForm
-    template_name = 'logbook/exercise_form.html'
-    success_url = reverse_lazy('logbook:exercise_list')
-    
-    def form_valid(self, form):
-        form.instance.user = self.request.user
-        return super().form_valid(form)
-
-class ExerciseUpdateView(LoginRequiredMixin, UpdateView):
-    model = Exercise
-    form_class = ExerciseForm
-    template_name = 'logbook/exercise_form.html'
-    success_url = reverse_lazy('logbook:exercise_list')
-    
-    def get_queryset(self):
-        return Exercise.objects.filter(user=self.request.user)
-
-class ExerciseDeleteView(LoginRequiredMixin, DeleteView):
-    model = Exercise
-    template_name = 'logbook/exercise_confirm_delete.html'
-    success_url = reverse_lazy('logbook:exercise_list')
-    
-    def get_queryset(self):
-        return Exercise.objects.filter(user=self.request.user)
+        
+        if active_sessions.exists():
+            messages.error(request, 'Não é possível excluir uma rotina com treinos ativos.')
+            return redirect('logbook:routine_detail', pk=self.object.pk)
+        
+        routine_name = self.object.name
+        messages.success(request, f'Rotina "{routine_name}" excluída com sucesso!')
+        return super().delete(request, *args, **kwargs)
 
 class RoutineDetailView(LoginRequiredMixin, DetailView):
     model = Routine
@@ -97,54 +104,149 @@ class RoutineDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['routine_exercises'] = self.object.routine_exercises.all()
-        context['form'] = RoutineExerciseForm(user=self.request.user)
+        context['form'] = RoutineExerciseForm(user=self.request.user, routine=self.object)
         return context
+
+class ExerciseListView(LoginRequiredMixin, ListView):
+    model = Exercise
+    template_name = 'logbook/exercise_list.html'
+    context_object_name = 'exercises'
+    
+    def get_queryset(self):
+        # Inclui exercícios globais (user=None) e do usuário
+        return Exercise.objects.filter(
+            models.Q(user=self.request.user) | models.Q(user=None)
+        ).order_by('-user', 'name')
+
+class ExerciseCreateView(LoginRequiredMixin, CreateView):
+    model = Exercise
+    form_class = ExerciseForm
+    template_name = 'logbook/exercise_form.html'
+    success_url = reverse_lazy('logbook:exercise_list')
+    
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+    
+    def form_valid(self, form):
+        try:
+            form.instance.user = self.request.user
+            response = super().form_valid(form)
+            messages.success(self.request, f'Exercício "{form.instance.name}" criado com sucesso!')
+            return response
+        except IntegrityError:
+            messages.error(self.request, 'Você já tem um exercício com este nome.')
+            return self.form_invalid(form)
+
+class ExerciseUpdateView(LoginRequiredMixin, UpdateView):
+    model = Exercise
+    form_class = ExerciseForm
+    template_name = 'logbook/exercise_form.html'
+    success_url = reverse_lazy('logbook:exercise_list')
+    
+    def get_queryset(self):
+        # Só permite editar exercícios do próprio usuário
+        return Exercise.objects.filter(user=self.request.user)
+    
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+    
+    def form_valid(self, form):
+        try:
+            response = super().form_valid(form)
+            messages.success(self.request, f'Exercício "{form.instance.name}" atualizado com sucesso!')
+            return response
+        except IntegrityError:
+            messages.error(self.request, 'Você já tem um exercício com este nome.')
+            return self.form_invalid(form)
+
+class ExerciseDeleteView(LoginRequiredMixin, DeleteView):
+    model = Exercise
+    template_name = 'logbook/exercise_confirm_delete.html'
+    success_url = reverse_lazy('logbook:exercise_list')
+    
+    def get_queryset(self):
+        # Só permite deletar exercícios do próprio usuário
+        return Exercise.objects.filter(user=self.request.user)
+    
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        
+        # Verificar se o exercício está sendo usado em alguma rotina
+        routine_uses = RoutineExercise.objects.filter(
+            exercise=self.object,
+            routine__user=request.user
+        )
+        
+        if routine_uses.exists():
+            routine_names = [ru.routine.name for ru in routine_uses[:3]]
+            if len(routine_uses) > 3:
+                routine_names.append('...')
+            
+            messages.error(
+                request, 
+                f'Não é possível excluir este exercício. Ele está sendo usado nas rotinas: {", ".join(routine_names)}'
+            )
+            return redirect('logbook:exercise_list')
+        
+        exercise_name = self.object.name
+        messages.success(request, f'Exercício "{exercise_name}" excluído com sucesso!')
+        return super().delete(request, *args, **kwargs)
 
 class AddExerciseToRoutineView(LoginRequiredMixin, View):
     def post(self, request, routine_id):
         routine = get_object_or_404(Routine, id=routine_id, user=request.user)
-        form = RoutineExerciseForm(request.POST, user=request.user)
+        form = RoutineExerciseForm(request.POST, user=request.user, routine=routine)
         
         if form.is_valid():
-            # Verificar se o exercício já está na rotina
-            exercise = form.cleaned_data['exercise']
-            if RoutineExercise.objects.filter(routine=routine, exercise=exercise).exists():
-                messages.error(request, f'O exercício "{exercise.name}" já está nesta rotina.')
-            else:
-                # Definir a ordem como o próximo número
-                max_order = RoutineExercise.objects.filter(routine=routine).aggregate(
-                    models.Max('order')
-                )['order__max'] or 0
-                
-                routine_exercise = form.save(commit=False)
-                routine_exercise.routine = routine
-                routine_exercise.order = max_order + 1
-                routine_exercise.save()
-                messages.success(request, f'Exercício "{exercise.name}" adicionado à rotina.')
+            try:
+                with transaction.atomic():
+                    routine_exercise = form.save(commit=False)
+                    routine_exercise.routine = routine
+                    
+                    # Definir a ordem como o próximo número disponível
+                    last_order = routine.routine_exercises.aggregate(
+                        models.Max('order')
+                    )['order__max'] or 0
+                    routine_exercise.order = last_order + 1
+                    
+                    routine_exercise.save()
+                    messages.success(request, f'Exercício "{routine_exercise.exercise.name}" adicionado à rotina!')
+            except IntegrityError:
+                messages.error(request, 'Este exercício já está na rotina.')
         else:
-            messages.error(request, 'Erro ao adicionar exercício. Verifique os dados.')
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, error)
         
         return redirect('logbook:routine_detail', pk=routine_id)
 
 class RemoveExerciseFromRoutineView(LoginRequiredMixin, View):
     def post(self, request, routine_id, exercise_id):
         routine = get_object_or_404(Routine, id=routine_id, user=request.user)
-        routine_exercise = get_object_or_404(
-            RoutineExercise, 
-            routine=routine, 
-            exercise_id=exercise_id
-        )
         
-        exercise_name = routine_exercise.exercise.name
-        routine_exercise.delete()
+        try:
+            routine_exercise = RoutineExercise.objects.get(
+                routine=routine,
+                exercise_id=exercise_id
+            )
+            exercise_name = routine_exercise.exercise.name
+            routine_exercise.delete()
+            
+            # Reordenar os exercícios restantes
+            remaining_exercises = routine.routine_exercises.order_by('order')
+            for i, re in enumerate(remaining_exercises, 1):
+                if re.order != i:
+                    re.order = i
+                    re.save()
+            
+            messages.success(request, f'Exercício "{exercise_name}" removido da rotina!')
+        except RoutineExercise.DoesNotExist:
+            messages.error(request, 'Exercício não encontrado na rotina.')
         
-        # Reordenar os exercícios restantes
-        remaining_exercises = RoutineExercise.objects.filter(routine=routine).order_by('order')
-        for i, re in enumerate(remaining_exercises, 1):
-            re.order = i
-            re.save()
-        
-        messages.success(request, f'Exercício "{exercise_name}" removido da rotina.')
         return redirect('logbook:routine_detail', pk=routine_id)
 
 class ReorderExercisesView(LoginRequiredMixin, View):
@@ -180,19 +282,23 @@ class StartWorkoutView(LoginRequiredMixin, View):
             return redirect('logbook:workout_session', pk=active_session.pk)
         
         # Verificar se a rotina tem exercícios
-        if not routine.routine_exercises.exists():
+        if not routine.can_start_workout():
             messages.error(request, 'Esta rotina não possui exercícios. Adicione exercícios antes de iniciar o treino.')
             return redirect('logbook:routine_detail', pk=routine_id)
         
-        # Criar nova sessão de treino
-        workout_session = WorkoutSession.objects.create(
-            user=request.user,
-            routine=routine,
-            date=date.today()
-        )
-        
-        messages.success(request, f'Treino "{routine.name}" iniciado!')
-        return redirect('logbook:workout_session', pk=workout_session.pk)
+        try:
+            # Criar nova sessão de treino
+            workout_session = WorkoutSession.objects.create(
+                user=request.user,
+                routine=routine,
+                date=date.today()
+            )
+            
+            messages.success(request, f'Treino "{routine.name}" iniciado!')
+            return redirect('logbook:workout_session', pk=workout_session.pk)
+        except IntegrityError:
+            messages.error(request, 'Erro ao iniciar treino. Tente novamente.')
+            return redirect('logbook:routine_detail', pk=routine_id)
 
 class WorkoutSessionView(LoginRequiredMixin, DetailView):
     model = WorkoutSession
@@ -205,6 +311,10 @@ class WorkoutSessionView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         session = self.object
+        
+        # Verificar se a sessão ainda está ativa
+        if session.status != 'active':
+            messages.warning(self.request, 'Esta sessão de treino não está mais ativa.')
         
         # Organizar exercícios da rotina com logs existentes
         exercises_data = []
@@ -249,6 +359,7 @@ class LogSetView(LoginRequiredMixin, View):
         session = get_object_or_404(WorkoutSession, id=session_id, user=request.user)
         exercise = get_object_or_404(Exercise, id=exercise_id)
         
+        # Validações de segurança
         if session.status != 'active':
             return JsonResponse({'success': False, 'error': 'Sessão não está ativa'})
         
@@ -256,25 +367,33 @@ class LogSetView(LoginRequiredMixin, View):
         if not RoutineExercise.objects.filter(routine=session.routine, exercise=exercise).exists():
             return JsonResponse({'success': False, 'error': 'Exercício não está na rotina'})
         
-        # Buscar ou criar o log da série
-        set_log, created = SetLog.objects.get_or_create(
-            workout_session=session,
-            exercise=exercise,
-            set_number=set_number,
-            defaults={'weight': 0, 'reps': 0}
-        )
+        # Verificar se o número da série é válido
+        routine_exercise = RoutineExercise.objects.get(routine=session.routine, exercise=exercise)
+        if set_number < 1 or set_number > routine_exercise.sets:
+            return JsonResponse({'success': False, 'error': 'Número de série inválido'})
         
-        form = SetLogForm(request.POST, instance=set_log)
-        if form.is_valid():
-            form.save()
-            return JsonResponse({
-                'success': True,
-                'weight': str(set_log.weight),
-                'reps': set_log.reps,
-                'volume': str(set_log.volume)
-            })
-        else:
-            return JsonResponse({'success': False, 'errors': form.errors})
+        try:
+            # Buscar ou criar o log da série
+            set_log, created = SetLog.objects.get_or_create(
+                workout_session=session,
+                exercise=exercise,
+                set_number=set_number,
+                defaults={'weight': 0, 'reps': 0}
+            )
+            
+            form = SetLogForm(request.POST, instance=set_log)
+            if form.is_valid():
+                form.save()
+                return JsonResponse({
+                    'success': True,
+                    'weight': str(set_log.weight),
+                    'reps': set_log.reps,
+                    'volume': str(set_log.volume)
+                })
+            else:
+                return JsonResponse({'success': False, 'errors': form.errors})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
 
 class CompleteWorkoutView(LoginRequiredMixin, View):
     def post(self, request, session_id):
@@ -284,18 +403,23 @@ class CompleteWorkoutView(LoginRequiredMixin, View):
             messages.error(request, 'Esta sessão não está ativa.')
             return redirect('logbook:routine_list')
         
-        # Atualizar notas se fornecidas
-        session_form = WorkoutSessionForm(request.POST, instance=session)
-        if session_form.is_valid():
-            session_form.save()
-        
-        # Marcar sessão como concluída
-        session.status = 'completed'
-        session.end_time = timezone.now()
-        session.save()
-        
-        messages.success(request, f'Treino "{session.routine.name}" concluído!')
-        return redirect('logbook:workout_history')
+        try:
+            with transaction.atomic():
+                # Atualizar notas se fornecidas
+                session_form = WorkoutSessionForm(request.POST, instance=session)
+                if session_form.is_valid():
+                    session_form.save()
+                
+                # Marcar sessão como concluída
+                session.status = 'completed'
+                session.end_time = timezone.now()
+                session.save()
+                
+                messages.success(request, f'Treino "{session.routine.name}" concluído com sucesso!')
+                return redirect('logbook:workout_history')
+        except Exception as e:
+            messages.error(request, f'Erro ao concluir treino: {str(e)}')
+            return redirect('logbook:workout_session', pk=session_id)
 
 class CancelWorkoutView(LoginRequiredMixin, View):
     def post(self, request, session_id):
@@ -305,12 +429,17 @@ class CancelWorkoutView(LoginRequiredMixin, View):
             messages.error(request, 'Esta sessão não está ativa.')
             return redirect('logbook:routine_list')
         
-        session.status = 'cancelled'
-        session.end_time = timezone.now()
-        session.save()
-        
-        messages.warning(request, f'Treino "{session.routine.name}" cancelado.')
-        return redirect('logbook:routine_list')
+        try:
+            with transaction.atomic():
+                session.status = 'cancelled'
+                session.end_time = timezone.now()
+                session.save()
+                
+                messages.warning(request, f'Treino "{session.routine.name}" cancelado.')
+                return redirect('logbook:routine_list')
+        except Exception as e:
+            messages.error(request, f'Erro ao cancelar treino: {str(e)}')
+            return redirect('logbook:workout_session', pk=session_id)
 
 class WorkoutHistoryView(LoginRequiredMixin, ListView):
     model = WorkoutSession
@@ -319,10 +448,51 @@ class WorkoutHistoryView(LoginRequiredMixin, ListView):
     paginate_by = 10
     
     def get_queryset(self):
-        return WorkoutSession.objects.filter(
+        queryset = WorkoutSession.objects.filter(
             user=self.request.user,
             status__in=['completed', 'cancelled']
         ).order_by('-date', '-start_time')
+        
+        # Filtros
+        routine_id = self.request.GET.get('routine')
+        status = self.request.GET.get('status')
+        date_from = self.request.GET.get('date_from')
+        date_to = self.request.GET.get('date_to')
+        
+        if routine_id:
+            try:
+                routine_id = int(routine_id)
+                queryset = queryset.filter(routine_id=routine_id)
+            except (ValueError, TypeError):
+                pass
+        
+        if status in ['completed', 'cancelled']:
+            queryset = queryset.filter(status=status)
+        
+        if date_from:
+            try:
+                queryset = queryset.filter(date__gte=date_from)
+            except ValueError:
+                pass
+        
+        if date_to:
+            try:
+                queryset = queryset.filter(date__lte=date_to)
+            except ValueError:
+                pass
+        
+        return queryset
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['routines'] = Routine.objects.filter(user=self.request.user)
+        context['filters'] = {
+            'routine': self.request.GET.get('routine', ''),
+            'status': self.request.GET.get('status', ''),
+            'date_from': self.request.GET.get('date_from', ''),
+            'date_to': self.request.GET.get('date_to', ''),
+        }
+        return context
 
 class WorkoutSessionDetailView(LoginRequiredMixin, DetailView):
     model = WorkoutSession
@@ -336,7 +506,84 @@ class WorkoutSessionDetailView(LoginRequiredMixin, DetailView):
         context = super().get_context_data(**kwargs)
         context['exercise_logs'] = self.object.get_exercise_logs()
         
+        # Calcular volume total
         total_volume = sum(log.volume for log in self.object.set_logs.all())
         context['total_volume'] = total_volume
+        
+        return context
+
+class DashboardView(LoginRequiredMixin, TemplateView):
+    template_name = 'logbook/dashboard.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        
+        try:
+            # Estatísticas gerais
+            total_sessions = WorkoutSession.objects.filter(user=user, status='completed').count()
+            total_routines = Routine.objects.filter(user=user).count()
+            total_exercises = Exercise.objects.filter(user=user).count()
+            
+            # Sessão ativa
+            active_session = WorkoutSession.objects.filter(user=user, status='active').first()
+            
+            # Últimos treinos
+            recent_sessions = WorkoutSession.objects.filter(
+                user=user,
+                status='completed'
+            ).order_by('-date')[:5]
+            
+            # Estatísticas dos últimos 30 dias
+            thirty_days_ago = date.today() - timedelta(days=30)
+            recent_stats = WorkoutSession.objects.filter(
+                user=user,
+                status='completed',
+                date__gte=thirty_days_ago
+            ).aggregate(
+                total_sessions=Count('id'),
+                total_sets=Count('set_logs')
+            )
+            
+            # Rotinas mais usadas
+            popular_routines = Routine.objects.filter(
+                user=user
+            ).annotate(
+                session_count=Count('workoutsession', filter=Q(workoutsession__status='completed'))
+            ).order_by('-session_count')[:5]
+            
+            # Volume por exercício (top 5)
+            top_exercises = Exercise.objects.filter(
+                setlog__workout_session__user=user,
+                setlog__workout_session__status='completed'
+            ).annotate(
+                total_volume=Sum(
+                    models.F('setlog__weight') * models.F('setlog__reps'),
+                    output_field=models.DecimalField()
+                )
+            ).order_by('-total_volume')[:5]
+            
+            context.update({
+                'total_sessions': total_sessions,
+                'total_routines': total_routines,
+                'total_exercises': total_exercises,
+                'active_session': active_session,
+                'recent_sessions': recent_sessions,
+                'recent_stats': recent_stats,
+                'popular_routines': popular_routines,
+                'top_exercises': top_exercises,
+            })
+        except Exception as e:
+            messages.error(self.request, f'Erro ao carregar dashboard: {str(e)}')
+            context.update({
+                'total_sessions': 0,
+                'total_routines': 0,
+                'total_exercises': 0,
+                'active_session': None,
+                'recent_sessions': [],
+                'recent_stats': {'total_sessions': 0, 'total_sets': 0},
+                'popular_routines': [],
+                'top_exercises': [],
+            })
         
         return context

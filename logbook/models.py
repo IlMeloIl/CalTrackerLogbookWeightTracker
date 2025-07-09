@@ -1,6 +1,8 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+from django.core.exceptions import ValidationError
+from django.db.models import Q
 
 User = get_user_model()
 
@@ -11,6 +13,18 @@ class Exercise(models.Model):
     
     class Meta:
         ordering = ['name']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['name', 'user'],
+                name='unique_exercise_per_user'
+            ),
+        ]
+    
+    def clean(self):
+        if self.name:
+            self.name = self.name.strip()
+            if len(self.name) < 2:
+                raise ValidationError("Nome do exercício deve ter pelo menos 2 caracteres.")
     
     def __str__(self):
         return self.name
@@ -22,9 +36,29 @@ class Routine(models.Model):
     
     class Meta:
         ordering = ['name']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['name', 'user'],
+                name='unique_routine_per_user'
+            ),
+        ]
+    
+    def clean(self):
+        if self.name:
+            self.name = self.name.strip()
+            if len(self.name) < 2:
+                raise ValidationError("Nome da rotina deve ter pelo menos 2 caracteres.")
     
     def __str__(self):
         return f"{self.name} - {self.user.username}"
+    
+    def can_start_workout(self):
+        """Verifica se a rotina pode ser usada para iniciar um treino"""
+        return self.routine_exercises.exists()
+    
+    def get_total_planned_sets(self):
+        """Retorna o total de séries planejadas na rotina"""
+        return sum(re.sets for re in self.routine_exercises.all())
 
 class RoutineExercise(models.Model):
     routine = models.ForeignKey(Routine, on_delete=models.CASCADE, related_name='routine_exercises')
@@ -35,6 +69,10 @@ class RoutineExercise(models.Model):
     class Meta:
         ordering = ['order']
         unique_together = ['routine', 'exercise']
+    
+    def clean(self):
+        if self.sets and (self.sets < 1 or self.sets > 20):
+            raise ValidationError("Número de séries deve estar entre 1 e 20.")
     
     def __str__(self):
         return f"{self.routine.name} - {self.exercise.name} ({self.sets} séries)"
@@ -56,6 +94,28 @@ class WorkoutSession(models.Model):
     
     class Meta:
         ordering = ['-start_time']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user'],
+                condition=Q(status='active'),
+                name='unique_active_session_per_user'
+            ),
+        ]
+    
+    def clean(self):
+        # Validar que não há outra sessão ativa para o mesmo usuário
+        if self.status == 'active' and self.user_id:
+            existing_active = WorkoutSession.objects.filter(
+                user=self.user,
+                status='active'
+            ).exclude(pk=self.pk)
+            
+            if existing_active.exists():
+                raise ValidationError("Você já tem uma sessão de treino ativa.")
+        
+        # Validar que end_time é após start_time
+        if self.end_time and self.start_time and self.end_time < self.start_time:
+            raise ValidationError("Hora de fim deve ser posterior à hora de início.")
     
     def __str__(self):
         return f"{self.user.username} - {self.routine.name} ({self.date})"
@@ -67,12 +127,21 @@ class WorkoutSession(models.Model):
         return None
     
     def get_exercise_logs(self):
+        """Retorna os logs organizados por exercício"""
         exercises = {}
         for set_log in self.set_logs.all():
             if set_log.exercise not in exercises:
                 exercises[set_log.exercise] = []
             exercises[set_log.exercise].append(set_log)
         return exercises
+    
+    def get_completion_percentage(self):
+        """Calcula a porcentagem de conclusão do treino"""
+        total_planned = self.routine.get_total_planned_sets()
+        if total_planned == 0:
+            return 0
+        completed = self.set_logs.count()
+        return min(100, (completed / total_planned) * 100)
 
 class SetLog(models.Model):
     workout_session = models.ForeignKey(WorkoutSession, on_delete=models.CASCADE, related_name='set_logs')
@@ -86,9 +155,20 @@ class SetLog(models.Model):
         ordering = ['exercise', 'set_number']
         unique_together = ['workout_session', 'exercise', 'set_number']
     
+    def clean(self):
+        if self.weight is not None and (self.weight < 0 or self.weight > 1000):
+            raise ValidationError("Peso deve estar entre 0 e 1000 kg.")
+        
+        if self.reps is not None and (self.reps < 1 or self.reps > 1000):
+            raise ValidationError("Número de repetições deve estar entre 1 e 1000.")
+        
+        if self.set_number is not None and (self.set_number < 1 or self.set_number > 20):
+            raise ValidationError("Número da série deve estar entre 1 e 20.")
+    
     def __str__(self):
         return f"{self.exercise.name} - Série {self.set_number}: {self.weight}kg x {self.reps} reps"
     
     @property
     def volume(self):
+        """Calcula o volume (peso x repetições)"""
         return self.weight * self.reps

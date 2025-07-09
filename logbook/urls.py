@@ -4,6 +4,9 @@ from . import views
 app_name = 'logbook'
 
 urlpatterns = [
+    
+    path('dashboard/', views.DashboardView.as_view(), name='dashboard'),
+
     path('', views.RoutineListView.as_view(), name='routine_list'),
     path('rotinas/add/', views.RoutineCreateView.as_view(), name='routine_add'),
     path('rotinas/<int:pk>/', views.RoutineDetailView.as_view(), name='routine_detail'),

@@ -5,7 +5,52 @@
 {% block content %}
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h1>Histórico de Treinos</h1>
-    <a href="{% url 'logbook:routine_list' %}" class="btn btn-primary">Voltar às Rotinas</a>
+    <div>
+      <a href="{% url 'logbook:dashboard' %}" class="btn btn-outline-secondary">Dashboard</a>
+      <a href="{% url 'logbook:routine_list' %}" class="btn btn-primary">Rotinas</a>
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h6 class="mb-0">Filtros</h6>
+    </div>
+    <div class="card-body">
+      <form method="get" class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label">Rotina</label>
+          <select name="routine" class="form-select">
+            <option value="">Todas as rotinas</option>
+            {% for routine in routines %}
+              <option value="{{ routine.pk }}" {% if filters.routine == routine.pk|stringformat:"s" %}selected{% endif %}>
+                {{ routine.name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Status</label>
+          <select name="status" class="form-select">
+            <option value="">Todos</option>
+            <option value="completed" {% if filters.status == "completed" %}selected{% endif %}>Concluído</option>
+            <option value="cancelled" {% if filters.status == "cancelled" %}selected{% endif %}>Cancelado</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Data de</label>
+          <input type="date" name="date_from" class="form-control" value="{{ filters.date_from }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Data até</label>
+          <input type="date" name="date_to" class="form-control" value="{{ filters.date_to }}">
+        </div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-primary">Filtrar</button>
+          <a href="{% url 'logbook:workout_history' %}" class="btn btn-outline-secondary">Limpar</a>
+        </div>
+      </form>
+    </div>
   </div>
 
   {% if sessions %}
@@ -29,8 +74,6 @@
                 <i class="bi bi-clock"></i> {{ session.start_time|date:"H:i" }}
                 {% if session.end_time %} - {{ session.end_time|date:"H:i" }}{% endif %}
               </p>
-              
-              
               
               {% if session.status == 'completed' %}
                 <p class="card-text text-muted mb-3">
@@ -61,10 +104,10 @@
         <ul class="pagination justify-content-center">
           {% if page_obj.has_previous %}
             <li class="page-item">
-              <a class="page-link" href="?page=1">&laquo; Primeira</a>
+              <a class="page-link" href="?page=1{% if request.GET.routine %}&routine={{ request.GET.routine }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.date_from %}&date_from={{ request.GET.date_from }}{% endif %}{% if request.GET.date_to %}&date_to={{ request.GET.date_to }}{% endif %}">&laquo; Primeira</a>
             </li>
             <li class="page-item">
-              <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a>
+              <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.routine %}&routine={{ request.GET.routine }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.date_from %}&date_from={{ request.GET.date_from }}{% endif %}{% if request.GET.date_to %}&date_to={{ request.GET.date_to }}{% endif %}">Anterior</a>
             </li>
           {% endif %}
           
@@ -74,10 +117,10 @@
           
           {% if page_obj.has_next %}
             <li class="page-item">
-              <a class="page-link" href="?page={{ page_obj.next_page_number }}">Próxima</a>
+              <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.routine %}&routine={{ request.GET.routine }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.date_from %}&date_from={{ request.GET.date_from }}{% endif %}{% if request.GET.date_to %}&date_to={{ request.GET.date_to }}{% endif %}">Próxima</a>
             </li>
             <li class="page-item">
-              <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Última &raquo;</a>
+              <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.routine %}&routine={{ request.GET.routine }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.date_from %}&date_from={{ request.GET.date_from }}{% endif %}{% if request.GET.date_to %}&date_to={{ request.GET.date_to }}{% endif %}">Última &raquo;</a>
             </li>
           {% endif %}
         </ul>
@@ -86,8 +129,8 @@
   {% else %}
     <div class="text-center py-5">
       <i class="bi bi-journal-x display-1 text-muted"></i>
-      <h3 class="mt-3">Nenhum treino realizado ainda</h3>
-      <p class="text-muted">Quando você completar seus primeiros treinos, eles aparecerão aqui.</p>
+      <h3 class="mt-3">Nenhum treino encontrado</h3>
+      <p class="text-muted">Ajuste os filtros ou realize seus primeiros treinos.</p>
       <a href="{% url 'logbook:routine_list' %}" class="btn btn-primary">Ver Rotinas</a>
     </div>
   {% endif %}
