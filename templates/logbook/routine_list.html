@@ -22,19 +22,15 @@
             <small class="text-muted">Criada em {{ routine.created_at|date:"d/m/Y" }}</small>
           </p>
           
-          <!-- Botão de Iniciar Treino -->
           {% if routine.routine_exercises.count > 0 %}
-          <form method="post" action="{% url 'logbook:start_workout' routine.pk %}" class="mb-3">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-success w-100">
-              <i class="bi bi-play-circle"></i> Iniciar Treino
-            </button>
-          </form>
-          {% else %}
+          <a href="{% url 'logbook:start_workout' routine.pk %}" class="btn btn-success w-100 mb-3">
+            <i class="bi bi-play-circle"></i> Iniciar Treino
+          </a>
+        {% else %}
           <div class="alert alert-warning py-2 mb-3">
             <small><i class="bi bi-exclamation-triangle"></i> Adicione exercícios para iniciar treino</small>
           </div>
-          {% endif %}
+        {% endif %}
           
           <div class="btn-group w-100" role="group">
             <a href="{% url 'logbook:routine_detail' routine.pk %}" class="btn btn-primary">Ver</a>

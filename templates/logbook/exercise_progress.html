@@ -11,7 +11,6 @@
     </div>
   </div>
 
-  <!-- Seletor de Exercício -->
   <div class="card mb-4">
     <div class="card-header">
       <h6 class="mb-0">Selecione um Exercício</h6>
@@ -45,7 +44,6 @@
   </div>
 
   {% if selected_exercise %}
-    <!-- Estatísticas do Exercício -->
     <div class="row mb-4">
       <div class="col-lg-4 col-md-4 col-sm-6 mb-3">
         <div class="card bg-primary text-white">
@@ -73,7 +71,6 @@
       </div>
     </div>
 
-    <!-- Gráfico de Progresso -->
     <div class="card mb-4">
       <div class="card-header">
         <h5 class="mb-0">Evolução do Peso - {{ selected_exercise.name }}</h5>
@@ -112,7 +109,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     const chartData = JSON.parse('{{ chart_data|safe }}');
     
-    // Preparar dados para o gráfico com duas escalas diferentes
     const maxWeightData = chartData.datasets[0].data;
     const sessionWeightData = chartData.datasets[1].data;
     const sessionLabels = chartData.session_labels;
