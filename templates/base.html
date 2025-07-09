@@ -27,8 +27,15 @@
                 <li class="nav-item">
                   <a class="nav-link" href="{% url 'weight:tracker' %}">Controle de Peso</a>
                 </li>
-                <li class="nav-item">
-                  <a class="nav-link" href="{% url 'logbook:routine_list' %}">Logbook</a>
+                <li class="nav-item dropdown">
+                  <a class="nav-link dropdown-toggle" href="#" id="logbookDropdown" role="button" data-bs-toggle="dropdown">
+                    Logbook
+                  </a>
+                  <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="{% url 'logbook:routine_list' %}">Rotinas</a></li>
+                    <li><a class="dropdown-item" href="{% url 'logbook:exercise_list' %}">Exercícios</a></li>
+                    <li><a class="dropdown-item" href="{% url 'logbook:workout_history' %}">Histórico</a></li>
+                  </ul>
                 </li>
               {% endif %}
             </ul>

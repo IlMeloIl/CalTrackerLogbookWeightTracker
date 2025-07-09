@@ -1,5 +1,6 @@
 from django import forms
 from .models import Routine, Exercise, RoutineExercise, WorkoutSession, SetLog
+from django.db import models
 
 class RoutineForm(forms.ModelForm):
     class Meta:

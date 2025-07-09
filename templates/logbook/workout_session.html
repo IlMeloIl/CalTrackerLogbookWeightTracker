@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}Treino Ativo: {{ session.routine.name }} - {{ block.super }}{% endblock %}
+
+{% block content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1>
+        <i class="bi bi-stopwatch text-success"></i>
+        {{ session.routine.name }}
+      </h1>
+      <p class="text-muted mb-0">
+        Iniciado em {{ session.start_time|date:"d/m/Y H:i" }}
+      </p>
+    </div>
+    <div>
+      <form method="post" action="{% url 'logbook:cancel_workout' session.pk %}" class="d-inline">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline-danger" onclick="return confirm('Tem certeza que deseja cancelar este treino?')">
+          <i class="bi bi-x-circle"></i> Cancelar
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Exercícios</h5>
+        </div>
+        <div class="card-body">
+          {% for exercise_data in exercises_data %}
+            <div class="exercise-section mb-4">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="mb-0">{{ exercise_data.exercise.name }}</h6>
+                <span class="badge bg-secondary">{{ exercise_data.routine_exercise.sets }} série{{ exercise_data.routine_exercise.sets|pluralize }}</span>
+              </div>
+              
+              {% if exercise_data.exercise.description %}
+                <p class="text-muted small mb-3">{{ exercise_data.exercise.description }}</p>
+              {% endif %}
+
+              <div class="row g-2">
+                {% for form_data in exercise_data.forms %}
+                  <div class="col-md-6">
+                    <div class="card {% if form_data.existing_log %}bg-success bg-opacity-10{% endif %}">
+                      <div class="card-body py-2">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                          <strong>Série {{ form_data.set_number }}</strong>
+                          {% if form_data.existing_log %}
+                            <span class="badge bg-success">Registrada</span>
+                          {% endif %}
+                        </div>
+                        
+                        <form class="set-form" data-session-id="{{ session.pk }}" data-exercise-id="{{ exercise_data.exercise.pk }}" data-set-number="{{ form_data.set_number }}">
+                          {% csrf_token %}
+                          <div class="row g-2">
+                            <div class="col-6">
+                              <label class="form-label small">Peso (kg)</label>
+                              {{ form_data.form.weight }}
+                            </div>
+                            <div class="col-6">
+                              <label class="form-label small">Reps</label>
+                              {{ form_data.form.reps }}
+                            </div>
+                          </div>
+                          <div class="mt-2">
+                            <label class="form-label small">Notas</label>
+                            {{ form_data.form.notes }}
+                          </div>
+                          <button type="submit" class="btn btn-primary btn-sm w-100 mt-2">
+                            {% if form_data.existing_log %}Atualizar{% else %}Registrar{% endif %}
+                          </button>
+                        </form>
+                        
+                        {% if form_data.existing_log %}
+                          <div class="mt-2 text-center">
+                            <small class="text-muted">
+                              Volume: {{ form_data.existing_log.volume }} kg
+                            </small>
+                          </div>
+                        {% endif %}
+                      </div>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+            {% if not forloop.last %}<hr>{% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Finalizar Treino</h5>
+        </div>
+        <div class="card-body">
+          <form method="post" action="{% url 'logbook:complete_workout' session.pk %}">
+            {% csrf_token %}
+            <div class="mb-3">
+              {{ session_form.notes.label_tag }}
+              {{ session_form.notes }}
+            </div>
+            <button type="submit" class="btn btn-success w-100">
+              <i class="bi bi-check-circle"></i> Concluir Treino
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const setForms = document.querySelectorAll('.set-form');
+    
+    setForms.forEach(form => {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const sessionId = this.dataset.sessionId;
+            const exerciseId = this.dataset.exerciseId;
+            const setNumber = this.dataset.setNumber;
+            
+            const formData = new FormData(this);
+            
+            fetch(`/logbook/treino/${sessionId}/log/${exerciseId}/${setNumber}/`, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Atualizar visual para mostrar que foi registrado
+                    const card = this.closest('.card');
+                    card.classList.add('bg-success', 'bg-opacity-10');
+                    
+                    const badge = card.querySelector('.badge');
+                    if (badge) {
+                        badge.textContent = 'Registrada';
+                        badge.classList.remove('bg-secondary');
+                        badge.classList.add('bg-success');
+                    } else {
+                        const badgeContainer = card.querySelector('.d-flex');
+                        badgeContainer.innerHTML += '<span class="badge bg-success">Registrada</span>';
+                    }
+                    
+                    // Atualizar botão
+                    const button = this.querySelector('button[type="submit"]');
+                    button.textContent = 'Atualizar';
+                    
+                    // Mostrar volume
+                    let volumeDiv = card.querySelector('.text-muted');
+                    if (!volumeDiv) {
+                        volumeDiv = document.createElement('div');
+                        volumeDiv.className = 'mt-2 text-center';
+                        volumeDiv.innerHTML = `<small class="text-muted">Volume: ${data.volume} kg</small>`;
+                        this.appendChild(volumeDiv);
+                    } else {
+                        volumeDiv.innerHTML = `<small class="text-muted">Volume: ${data.volume} kg</small>`;
+                    }
+                } else {
+                    alert('Erro ao registrar série. Tente novamente.');
+                }
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+                alert('Erro ao registrar série. Tente novamente.');
+            });
+        });
+    });
+});
+</script>
+{% endblock %}
