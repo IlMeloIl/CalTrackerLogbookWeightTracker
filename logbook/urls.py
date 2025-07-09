@@ -28,6 +28,5 @@ urlpatterns = [
     path('exercicios/<int:pk>/edit/', views.ExerciseUpdateView.as_view(), name='exercise_edit'),
     path('exercicios/<int:pk>/delete/', views.ExerciseDeleteView.as_view(), name='exercise_delete'),
 
-    path('historico/', views.WorkoutHistoryView.as_view(), name='workout_history'),
-    path('historico/<int:pk>/', views.WorkoutSessionDetailView.as_view(), name='workout_session_detail'),
+    path('progresso/', views.ExerciseProgressView.as_view(), name='exercise_progress'),
 ]

@@ -441,77 +441,6 @@ class CancelWorkoutView(LoginRequiredMixin, View):
             messages.error(request, f'Erro ao cancelar treino: {str(e)}')
             return redirect('logbook:workout_session', pk=session_id)
 
-class WorkoutHistoryView(LoginRequiredMixin, ListView):
-    model = WorkoutSession
-    template_name = 'logbook/workout_history.html'
-    context_object_name = 'sessions'
-    paginate_by = 10
-    
-    def get_queryset(self):
-        queryset = WorkoutSession.objects.filter(
-            user=self.request.user,
-            status__in=['completed', 'cancelled']
-        ).order_by('-date', '-start_time')
-        
-        # Filtros
-        routine_id = self.request.GET.get('routine')
-        status = self.request.GET.get('status')
-        date_from = self.request.GET.get('date_from')
-        date_to = self.request.GET.get('date_to')
-        
-        if routine_id:
-            try:
-                routine_id = int(routine_id)
-                queryset = queryset.filter(routine_id=routine_id)
-            except (ValueError, TypeError):
-                pass
-        
-        if status in ['completed', 'cancelled']:
-            queryset = queryset.filter(status=status)
-        
-        if date_from:
-            try:
-                queryset = queryset.filter(date__gte=date_from)
-            except ValueError:
-                pass
-        
-        if date_to:
-            try:
-                queryset = queryset.filter(date__lte=date_to)
-            except ValueError:
-                pass
-        
-        return queryset
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['routines'] = Routine.objects.filter(user=self.request.user)
-        context['filters'] = {
-            'routine': self.request.GET.get('routine', ''),
-            'status': self.request.GET.get('status', ''),
-            'date_from': self.request.GET.get('date_from', ''),
-            'date_to': self.request.GET.get('date_to', ''),
-        }
-        return context
-
-class WorkoutSessionDetailView(LoginRequiredMixin, DetailView):
-    model = WorkoutSession
-    template_name = 'logbook/workout_session_detail.html'
-    context_object_name = 'session'
-    
-    def get_queryset(self):
-        return WorkoutSession.objects.filter(user=self.request.user)
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['exercise_logs'] = self.object.get_exercise_logs()
-        
-        # Calcular volume total
-        total_volume = sum(log.volume for log in self.object.set_logs.all())
-        context['total_volume'] = total_volume
-        
-        return context
-
 class DashboardView(LoginRequiredMixin, TemplateView):
     template_name = 'logbook/dashboard.html'
     
@@ -528,18 +457,43 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             # Sessão ativa
             active_session = WorkoutSession.objects.filter(user=user, status='active').first()
             
-            # Últimos treinos
-            recent_sessions = WorkoutSession.objects.filter(
+            # Estatísticas dos últimos 30 dias
+            thirty_days_ago = date.today() - timedelta(days=30)
+            recent_stats = WorkoutSession.objects.filter(
                 user=user,
-                status='completed'
-            ).order_by('-date')[:5]
+                status='completed',
+                date__gte=thirty_days_ago
+            ).aggregate(
+                total_sessions=Count('id'),
+                total_sets=Count('set_logs')
+            )
+            
+            # Rotinas mais usadas
+            popular_routines = Routine.objects.filter(
+                user=user
+            ).annotate(
+                session_count=Count('workoutsession', filter=Q(workoutsession__status='completed'))
+            ).order_by('-session_count')[:5]
+            
+            # Volume por exercício (top 5)
+            top_exercises = Exercise.objects.filter(
+                setlog__workout_session__user=user,
+                setlog__workout_session__status='completed'
+            ).annotate(
+                total_volume=Sum(
+                    models.F('setlog__weight') * models.F('setlog__reps'),
+                    output_field=models.DecimalField()
+                )
+            ).order_by('-total_volume')[:5]
             
             context.update({
                 'total_sessions': total_sessions,
                 'total_routines': total_routines,
                 'total_exercises': total_exercises,
                 'active_session': active_session,
-                'recent_sessions': recent_sessions,
+                'recent_stats': recent_stats,
+                'popular_routines': popular_routines,
+                'top_exercises': top_exercises,
             })
         except Exception as e:
             messages.error(self.request, f'Erro ao carregar dashboard: {str(e)}')
@@ -548,7 +502,145 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                 'total_routines': 0,
                 'total_exercises': 0,
                 'active_session': None,
-                'recent_sessions': [],
+                'recent_stats': {'total_sessions': 0, 'total_sets': 0},
+                'popular_routines': [],
+                'top_exercises': [],
             })
         
         return context
+
+class ExerciseProgressView(LoginRequiredMixin, TemplateView):
+    template_name = 'logbook/exercise_progress.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        
+        # Obter exercícios personalizados do usuário
+        user_exercises = Exercise.objects.filter(user=user).order_by('name')
+        
+        # Parâmetros da URL
+        exercise_id = self.request.GET.get('exercise')
+        period = self.request.GET.get('period', '90')  # 90 dias por padrão
+        
+        selected_exercise = None
+        stats = None
+        chart_data = None
+        recent_sets = None
+        
+        if exercise_id:
+            try:
+                selected_exercise = Exercise.objects.get(id=exercise_id, user=user)
+                
+                # Calcular período
+                days_ago = int(period)
+                start_date = date.today() - timedelta(days=days_ago)
+                
+                # Buscar dados do exercício
+                set_logs = SetLog.objects.filter(
+                    exercise=selected_exercise,
+                    workout_session__user=user,
+                    workout_session__status='completed',
+                    workout_session__date__gte=start_date
+                ).order_by('workout_session__date', 'set_number')
+                
+                if set_logs.exists():
+                    # Calcular estatísticas
+                    stats = {
+                        'total_workouts': set_logs.values('workout_session').distinct().count(),
+                        'total_sets': set_logs.count(),
+                        'max_weight': set_logs.aggregate(models.Max('weight'))['weight__max'] or 0,
+                        'total_volume': sum(log.volume for log in set_logs),
+                    }
+                    
+                    # Preparar dados para o gráfico
+                    chart_data = self._prepare_chart_data(set_logs)
+                    
+                    # Últimas 20 séries
+                    recent_sets = set_logs.order_by('-workout_session__date', '-set_number')[:20]
+                else:
+                    stats = {
+                        'total_workouts': 0,
+                        'total_sets': 0,
+                        'max_weight': 0,
+                        'total_volume': 0,
+                    }
+                    
+            except (Exercise.DoesNotExist, ValueError):
+                pass
+        
+        context.update({
+            'user_exercises': user_exercises,
+            'selected_exercise': selected_exercise,
+            'period': period,
+            'stats': stats,
+            'chart_data': chart_data,
+            'recent_sets': recent_sets,
+        })
+        
+        return context
+    
+    def _prepare_chart_data(self, set_logs):
+        """Prepara dados para o gráfico de progresso"""
+        import json
+        
+        # Agrupar por data de treino e calcular peso máximo por treino
+        workout_data = {}
+        for log in set_logs:
+            workout_date = log.workout_session.date
+            if workout_date not in workout_data:
+                workout_data[workout_date] = {
+                    'max_weight': float(log.weight),
+                    'avg_weight': [],
+                    'total_volume': 0
+                }
+            else:
+                workout_data[workout_date]['max_weight'] = max(
+                    workout_data[workout_date]['max_weight'], 
+                    float(log.weight)
+                )
+            
+            workout_data[workout_date]['avg_weight'].append(float(log.weight))
+            workout_data[workout_date]['total_volume'] += float(log.volume)
+        
+        # Calcular peso médio por treino
+        for date_key in workout_data:
+            weights = workout_data[date_key]['avg_weight']
+            workout_data[date_key]['avg_weight'] = sum(weights) / len(weights)
+        
+        # Ordenar por data
+        sorted_dates = sorted(workout_data.keys())
+        
+        # Preparar dados para Chart.js
+        labels = [date.strftime('%d/%m') for date in sorted_dates]
+        max_weights = [workout_data[date]['max_weight'] for date in sorted_dates]
+        avg_weights = [workout_data[date]['avg_weight'] for date in sorted_dates]
+        volumes = [workout_data[date]['total_volume'] for date in sorted_dates]
+        
+        chart_data = {
+            'labels': labels,
+            'datasets': [
+                {
+                    'label': 'Peso Máximo',
+                    'data': max_weights,
+                    'borderColor': '#dc3545',
+                    'backgroundColor': 'rgba(220, 53, 69, 0.1)',
+                    'tension': 0.3,
+                    'fill': False,
+                    'pointRadius': 5,
+                    'pointHoverRadius': 8,
+                },
+                {
+                    'label': 'Peso Médio',
+                    'data': avg_weights,
+                    'borderColor': '#0d6efd',
+                    'backgroundColor': 'rgba(13, 110, 253, 0.1)',
+                    'tension': 0.3,
+                    'fill': False,
+                    'pointRadius': 4,
+                    'pointHoverRadius': 6,
+                }
+            ]
+        }
+        
+        return json.dumps(chart_data)
