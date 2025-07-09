@@ -430,11 +430,11 @@ class CancelWorkoutView(LoginRequiredMixin, View):
         
         try:
             with transaction.atomic():
-                session.status = 'cancelled'
-                session.end_time = timezone.now()
-                session.save()
+                routine_name = session.routine.name
+                # Deletar completamente a sessão e todos os logs relacionados
+                session.delete()
                 
-                messages.warning(request, f'Treino "{session.routine.name}" cancelado.')
+                messages.warning(request, f'Treino "{routine_name}" cancelado e removido.')
                 return redirect('logbook:routine_list')
         except Exception as e:
             messages.error(request, f'Erro ao cancelar treino: {str(e)}')
@@ -458,10 +458,10 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             ).count(),
         }
         
-        # Treinos recentes (últimos 5)
+        # Treinos recentes (últimos 5) - apenas concluídos
         context['recent_sessions'] = WorkoutSession.objects.filter(
             user=self.request.user,
-            status__in=['completed', 'cancelled']
+            status='completed'
         ).order_by('-date', '-start_time')[:5]
         
         # Sessão ativa
@@ -513,20 +513,16 @@ class ExerciseProgressView(LoginRequiredMixin, TemplateView):
                         'total_workouts': set_logs.values('workout_session').distinct().count(),
                         'total_sets': set_logs.count(),
                         'max_weight': set_logs.aggregate(models.Max('weight'))['weight__max'] or 0,
-                        'total_volume': sum(log.volume for log in set_logs),
                     }
                     
                     # Preparar dados para o gráfico
                     chart_data = self._prepare_chart_data(set_logs)
                     
-                    # Últimas 20 séries
-                    recent_sets = set_logs.order_by('-workout_session__date', '-set_number')[:20]
                 else:
                     stats = {
                         'total_workouts': 0,
                         'total_sets': 0,
                         'max_weight': 0,
-                        'total_volume': 0,
                     }
                     
             except (Exercise.DoesNotExist, ValueError):
@@ -538,7 +534,6 @@ class ExerciseProgressView(LoginRequiredMixin, TemplateView):
             'period': period,
             'stats': stats,
             'chart_data': chart_data,
-            'recent_sets': recent_sets,
         })
         
         return context
@@ -549,13 +544,15 @@ class ExerciseProgressView(LoginRequiredMixin, TemplateView):
         
         # Agrupar por data de treino e calcular peso máximo por treino
         workout_data = {}
+        session_weights = []  # Para armazenar pesos individuais de cada série
+        
         for log in set_logs:
             workout_date = log.workout_session.date
+            
+            # Dados para peso máximo por treino
             if workout_date not in workout_data:
                 workout_data[workout_date] = {
                     'max_weight': float(log.weight),
-                    'avg_weight': [],
-                    'total_volume': 0
                 }
             else:
                 workout_data[workout_date]['max_weight'] = max(
@@ -563,25 +560,30 @@ class ExerciseProgressView(LoginRequiredMixin, TemplateView):
                     float(log.weight)
                 )
             
-            workout_data[workout_date]['avg_weight'].append(float(log.weight))
-            workout_data[workout_date]['total_volume'] += float(log.volume)
-        
-        # Calcular peso médio por treino
-        for date_key in workout_data:
-            weights = workout_data[date_key]['avg_weight']
-            workout_data[date_key]['avg_weight'] = sum(weights) / len(weights)
+            # Dados para peso de cada série individual
+            session_weights.append({
+                'date': workout_date,
+                'weight': float(log.weight)
+            })
         
         # Ordenar por data
         sorted_dates = sorted(workout_data.keys())
         
-        # Preparar dados para Chart.js
-        labels = [date.strftime('%d/%m') for date in sorted_dates]
+        # Preparar dados para peso máximo por treino
+        max_labels = [date.strftime('%d/%m') for date in sorted_dates]
         max_weights = [workout_data[date]['max_weight'] for date in sorted_dates]
-        avg_weights = [workout_data[date]['avg_weight'] for date in sorted_dates]
-        volumes = [workout_data[date]['total_volume'] for date in sorted_dates]
         
+        # Preparar dados para peso de cada série individual
+        session_labels = []
+        session_weight_values = []
+        
+        for item in session_weights:
+            session_labels.append(item['date'].strftime('%d/%m'))
+            session_weight_values.append(item['weight'])
+        
+        # Preparar dados para Chart.js
         chart_data = {
-            'labels': labels,
+            'labels': max_labels,
             'datasets': [
                 {
                     'label': 'Peso Máximo',
@@ -594,16 +596,18 @@ class ExerciseProgressView(LoginRequiredMixin, TemplateView):
                     'pointHoverRadius': 8,
                 },
                 {
-                    'label': 'Peso Médio',
-                    'data': avg_weights,
-                    'borderColor': '#0d6efd',
-                    'backgroundColor': 'rgba(13, 110, 253, 0.1)',
-                    'tension': 0.3,
+                    'label': 'Peso de Sessão',
+                    'data': session_weight_values,
+                    'borderColor': '#28a745',
+                    'backgroundColor': 'rgba(40, 167, 69, 0.1)',
+                    'tension': 0.1,
                     'fill': False,
-                    'pointRadius': 4,
-                    'pointHoverRadius': 6,
+                    'pointRadius': 3,
+                    'pointHoverRadius': 5,
+                    'showLine': True,
                 }
-            ]
+            ],
+            'session_labels': session_labels  # Labels separados para série individual
         }
         
         return json.dumps(chart_data)

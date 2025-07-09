@@ -81,7 +81,6 @@ class WorkoutSession(models.Model):
     STATUS_CHOICES = [
         ('active', 'Ativo'),
         ('completed', 'Concluído'),
-        ('cancelled', 'Cancelado'),
     ]
     
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='workout_sessions')

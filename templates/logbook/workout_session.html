@@ -16,9 +16,9 @@
     <div>
       <form method="post" action="{% url 'logbook:cancel_workout' session.pk %}" class="d-inline">
         {% csrf_token %}
-        <button type="submit" class="btn btn-outline-danger" onclick="return confirm('Tem certeza que deseja cancelar este treino?')">
+        <button type="submit" class="btn btn-outline-danger" onclick="return confirm('Tem certeza que deseja cancelar este treino? Ele será deletado permanentemente.')">
           <i class="bi bi-x-circle"></i> Cancelar
-        </button>
+      </button>
       </form>
     </div>
   </div>

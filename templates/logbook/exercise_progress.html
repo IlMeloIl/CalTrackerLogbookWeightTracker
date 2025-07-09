@@ -47,7 +47,7 @@
   {% if selected_exercise %}
     <!-- Estatísticas do Exercício -->
     <div class="row mb-4">
-      <div class="col-md-3">
+      <div class="col-lg-4 col-md-4 col-sm-6 mb-3">
         <div class="card bg-primary text-white">
           <div class="card-body text-center">
             <h4>{{ stats.total_workouts }}</h4>
@@ -55,7 +55,7 @@
           </div>
         </div>
       </div>
-      <div class="col-md-3">
+      <div class="col-lg-4 col-md-4 col-sm-6 mb-3">
         <div class="card bg-success text-white">
           <div class="card-body text-center">
             <h4>{{ stats.total_sets }}</h4>
@@ -63,19 +63,11 @@
           </div>
         </div>
       </div>
-      <div class="col-md-3">
+      <div class="col-lg-4 col-md-4 col-sm-12 mb-3">
         <div class="card bg-info text-white">
           <div class="card-body text-center">
             <h4>{{ stats.max_weight|floatformat:1 }}kg</h4>
             <small>Peso Máximo</small>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="card bg-warning text-dark">
-          <div class="card-body text-center">
-            <h4>{{ stats.total_volume|floatformat:0 }}kg</h4>
-            <small>Volume Total</small>
           </div>
         </div>
       </div>
@@ -88,61 +80,15 @@
       </div>
       <div class="card-body">
         {% if chart_data %}
-        <div style="position: relative; height: 400px;">
-          <canvas id="progressChart"></canvas>
-        </div>
+          <div style="position: relative; height: 400px;">
+            <canvas id="progressChart"></canvas>
+          </div>
         {% else %}
-        <div class="text-center py-4">
-          <i class="bi bi-graph-up display-4 text-muted"></i>
-          <h5 class="mt-3">Nenhum dado disponível</h5>
-          <p class="text-muted">Realize treinos com este exercício para ver o progresso.</p>
-        </div>
-        {% endif %}
-      </div>
-    </div>
-
-    <!-- Histórico de Séries -->
-    <div class="card">
-      <div class="card-header">
-        <h5 class="mb-0">Últimas Séries</h5>
-      </div>
-      <div class="card-body">
-        {% if recent_sets %}
-        <div class="table-responsive">
-          <table class="table table-striped">
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Peso (kg)</th>
-                <th>Repetições</th>
-                <th>Volume (kg)</th>
-                <th>Notas</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for set_log in recent_sets %}
-              <tr>
-                <td>{{ set_log.workout_session.date|date:"d/m/Y" }}</td>
-                <td>{{ set_log.weight|floatformat:1 }}</td>
-                <td>{{ set_log.reps }}</td>
-                <td class="fw-bold">{{ set_log.volume|floatformat:1 }}</td>
-                <td>
-                  {% if set_log.notes %}
-                    <small class="text-muted">{{ set_log.notes|truncatewords:5 }}</small>
-                  {% else %}
-                    <small class="text-muted">-</small>
-                  {% endif %}
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        {% else %}
-        <div class="text-center py-3">
-          <i class="bi bi-info-circle display-4 text-muted"></i>
-          <p class="text-muted mt-2">Nenhuma série registrada para este exercício.</p>
-        </div>
+          <div class="text-center py-4">
+            <i class="bi bi-graph-up display-4 text-muted"></i>
+            <h5 class="mt-3">Nenhum dado disponível</h5>
+            <p class="text-muted">Realize treinos com este exercício para ver o progresso.</p>
+          </div>
         {% endif %}
       </div>
     </div>
@@ -160,15 +106,16 @@
 {% endblock %}
 
 {% block extra_js %}
-{% if selected_exercise and chart_data %}
+{% if chart_data %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const dataEl = document.getElementById('chart-data');
-    if (!dataEl) return;
+    const chartData = JSON.parse('{{ chart_data|safe }}');
     
-    const chartData = JSON.parse(dataEl.textContent);
-    if (!chartData.labels || !chartData.datasets) return;
+    // Preparar dados para o gráfico com duas escalas diferentes
+    const maxWeightData = chartData.datasets[0].data;
+    const sessionWeightData = chartData.datasets[1].data;
+    const sessionLabels = chartData.session_labels;
     
     const ctx = document.getElementById('progressChart').getContext('2d');
     
@@ -176,11 +123,42 @@ document.addEventListener('DOMContentLoaded', function() {
         type: 'line',
         data: {
             labels: chartData.labels,
-            datasets: chartData.datasets
+            datasets: [
+                {
+                    label: 'Peso Máximo por Treino',
+                    data: maxWeightData,
+                    borderColor: '#dc3545',
+                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                    tension: 0.3,
+                    fill: false,
+                    pointRadius: 5,
+                    pointHoverRadius: 8,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'Peso de Cada Série',
+                    data: sessionWeightData.map((weight, index) => ({
+                        x: sessionLabels[index],
+                        y: weight
+                    })),
+                    borderColor: '#28a745',
+                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                    tension: 0.1,
+                    fill: false,
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    showLine: true,
+                    yAxisID: 'y'
+                }
+            ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
             plugins: {
                 title: {
                     display: true,
@@ -192,17 +170,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
             scales: {
-                y: {
-                    beginAtZero: false,
-                    title: {
-                        display: true,
-                        text: 'Peso (kg)'
-                    }
-                },
                 x: {
                     title: {
                         display: true,
                         text: 'Data do Treino'
+                    }
+                },
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    beginAtZero: false,
+                    title: {
+                        display: true,
+                        text: 'Peso (kg)'
                     }
                 }
             }
