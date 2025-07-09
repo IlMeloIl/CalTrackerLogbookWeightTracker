@@ -534,44 +534,12 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                 status='completed'
             ).order_by('-date')[:5]
             
-            # Estatísticas dos últimos 30 dias
-            thirty_days_ago = date.today() - timedelta(days=30)
-            recent_stats = WorkoutSession.objects.filter(
-                user=user,
-                status='completed',
-                date__gte=thirty_days_ago
-            ).aggregate(
-                total_sessions=Count('id'),
-                total_sets=Count('set_logs')
-            )
-            
-            # Rotinas mais usadas
-            popular_routines = Routine.objects.filter(
-                user=user
-            ).annotate(
-                session_count=Count('workoutsession', filter=Q(workoutsession__status='completed'))
-            ).order_by('-session_count')[:5]
-            
-            # Volume por exercício (top 5)
-            top_exercises = Exercise.objects.filter(
-                setlog__workout_session__user=user,
-                setlog__workout_session__status='completed'
-            ).annotate(
-                total_volume=Sum(
-                    models.F('setlog__weight') * models.F('setlog__reps'),
-                    output_field=models.DecimalField()
-                )
-            ).order_by('-total_volume')[:5]
-            
             context.update({
                 'total_sessions': total_sessions,
                 'total_routines': total_routines,
                 'total_exercises': total_exercises,
                 'active_session': active_session,
                 'recent_sessions': recent_sessions,
-                'recent_stats': recent_stats,
-                'popular_routines': popular_routines,
-                'top_exercises': top_exercises,
             })
         except Exception as e:
             messages.error(self.request, f'Erro ao carregar dashboard: {str(e)}')
@@ -581,9 +549,6 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                 'total_exercises': 0,
                 'active_session': None,
                 'recent_sessions': [],
-                'recent_stats': {'total_sessions': 0, 'total_sets': 0},
-                'popular_routines': [],
-                'top_exercises': [],
             })
         
         return context
