@@ -167,8 +167,3 @@ class SetLog(models.Model):
     
     def __str__(self):
         return f"{self.exercise.name} - Série {self.set_number}: {self.weight}kg x {self.reps} reps"
-    
-    @property
-    def volume(self):
-        """Calcula o volume (peso x repetições)"""
-        return self.weight * self.reps

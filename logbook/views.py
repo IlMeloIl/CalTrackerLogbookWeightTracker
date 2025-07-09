@@ -388,7 +388,6 @@ class LogSetView(LoginRequiredMixin, View):
                     'success': True,
                     'weight': str(set_log.weight),
                     'reps': set_log.reps,
-                    'volume': str(set_log.volume)
                 })
             else:
                 return JsonResponse({'success': False, 'errors': form.errors})
@@ -446,66 +445,30 @@ class DashboardView(LoginRequiredMixin, TemplateView):
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        user = self.request.user
         
-        try:
-            # Estatísticas gerais
-            total_sessions = WorkoutSession.objects.filter(user=user, status='completed').count()
-            total_routines = Routine.objects.filter(user=user).count()
-            total_exercises = Exercise.objects.filter(user=user).count()
-            
-            # Sessão ativa
-            active_session = WorkoutSession.objects.filter(user=user, status='active').first()
-            
-            # Estatísticas dos últimos 30 dias
-            thirty_days_ago = date.today() - timedelta(days=30)
-            recent_stats = WorkoutSession.objects.filter(
-                user=user,
+        # Estatísticas básicas
+        context['stats'] = {
+            'total_routines': Routine.objects.filter(user=self.request.user).count(),
+            'total_exercises': Exercise.objects.filter(user=self.request.user).count(),
+            'total_workouts': WorkoutSession.objects.filter(user=self.request.user, status='completed').count(),
+            'workouts_this_week': WorkoutSession.objects.filter(
+                user=self.request.user,
                 status='completed',
-                date__gte=thirty_days_ago
-            ).aggregate(
-                total_sessions=Count('id'),
-                total_sets=Count('set_logs')
-            )
-            
-            # Rotinas mais usadas
-            popular_routines = Routine.objects.filter(
-                user=user
-            ).annotate(
-                session_count=Count('workoutsession', filter=Q(workoutsession__status='completed'))
-            ).order_by('-session_count')[:5]
-            
-            # Volume por exercício (top 5)
-            top_exercises = Exercise.objects.filter(
-                setlog__workout_session__user=user,
-                setlog__workout_session__status='completed'
-            ).annotate(
-                total_volume=Sum(
-                    models.F('setlog__weight') * models.F('setlog__reps'),
-                    output_field=models.DecimalField()
-                )
-            ).order_by('-total_volume')[:5]
-            
-            context.update({
-                'total_sessions': total_sessions,
-                'total_routines': total_routines,
-                'total_exercises': total_exercises,
-                'active_session': active_session,
-                'recent_stats': recent_stats,
-                'popular_routines': popular_routines,
-                'top_exercises': top_exercises,
-            })
-        except Exception as e:
-            messages.error(self.request, f'Erro ao carregar dashboard: {str(e)}')
-            context.update({
-                'total_sessions': 0,
-                'total_routines': 0,
-                'total_exercises': 0,
-                'active_session': None,
-                'recent_stats': {'total_sessions': 0, 'total_sets': 0},
-                'popular_routines': [],
-                'top_exercises': [],
-            })
+                date__gte=timezone.now().date() - timedelta(days=7)
+            ).count(),
+        }
+        
+        # Treinos recentes (últimos 5)
+        context['recent_sessions'] = WorkoutSession.objects.filter(
+            user=self.request.user,
+            status__in=['completed', 'cancelled']
+        ).order_by('-date', '-start_time')[:5]
+        
+        # Sessão ativa
+        context['active_session'] = WorkoutSession.objects.filter(
+            user=self.request.user,
+            status='active'
+        ).first()
         
         return context
 
