@@ -37,6 +37,41 @@ from .forms import (
 )
 
 
+class WorkoutUtils:
+    @staticmethod
+    def gerar_dados_exercicios(session):
+        exercises_data = []
+        for workout_exercise in session.get_workout_exercises():
+            exercise = workout_exercise.exercise
+
+            existing_logs = SetLog.objects.filter(
+                workout_session=session, exercise=exercise
+            ).order_by("set_number")
+
+            forms = []
+            for set_num in range(1, workout_exercise.sets + 1):
+                existing_log = existing_logs.filter(set_number=set_num).first()
+
+                if existing_log:
+                    form = SetLogForm(instance=existing_log)
+                else:
+                    form = SetLogForm(initial={"set_number": set_num})
+
+                forms.append(
+                    {"form": form, "set_number": set_num, "existing_log": existing_log}
+                )
+
+            exercises_data.append(
+                {
+                    "exercise": exercise,
+                    "workout_exercise": workout_exercise,
+                    "forms": forms,
+                    "existing_logs": existing_logs,
+                }
+            )
+        return exercises_data
+
+
 class BaseCreateUpdateMixin:
     def handle_integrity_error(self, form, error_message):
         messages.error(self.request, error_message)
@@ -422,35 +457,7 @@ class WorkoutSessionView(LoginRequiredMixin, DetailView):
         if session.status != "active":
             messages.warning(self.request, "Esta sessão de treino não está mais ativa.")
 
-        exercises_data = []
-        for workout_exercise in session.get_workout_exercises():
-            exercise = workout_exercise.exercise
-
-            existing_logs = SetLog.objects.filter(
-                workout_session=session, exercise=exercise
-            ).order_by("set_number")
-
-            forms = []
-            for set_num in range(1, workout_exercise.sets + 1):
-                existing_log = existing_logs.filter(set_number=set_num).first()
-
-                if existing_log:
-                    form = SetLogForm(instance=existing_log)
-                else:
-                    form = SetLogForm(initial={"set_number": set_num})
-
-                forms.append(
-                    {"form": form, "set_number": set_num, "existing_log": existing_log}
-                )
-
-            exercises_data.append(
-                {
-                    "exercise": exercise,
-                    "workout_exercise": workout_exercise,
-                    "forms": forms,
-                    "existing_logs": existing_logs,
-                }
-            )
+        exercises_data = WorkoutUtils.gerar_dados_exercicios(session)
 
         current_exercise_ids = [
             we.exercise.id for we in session.get_workout_exercises()
@@ -1112,35 +1119,7 @@ class WorkoutSessionEditView(LoginRequiredMixin, DetailView):
         context = super().get_context_data(**kwargs)
         session = self.object
 
-        exercises_data = []
-        for workout_exercise in session.get_workout_exercises():
-            exercise = workout_exercise.exercise
-
-            existing_logs = SetLog.objects.filter(
-                workout_session=session, exercise=exercise
-            ).order_by("set_number")
-
-            forms = []
-            for set_num in range(1, workout_exercise.sets + 1):
-                existing_log = existing_logs.filter(set_number=set_num).first()
-
-                if existing_log:
-                    form = SetLogForm(instance=existing_log)
-                else:
-                    form = SetLogForm(initial={"set_number": set_num})
-
-                forms.append(
-                    {"form": form, "set_number": set_num, "existing_log": existing_log}
-                )
-
-            exercises_data.append(
-                {
-                    "exercise": exercise,
-                    "workout_exercise": workout_exercise,
-                    "forms": forms,
-                    "existing_logs": existing_logs,
-                }
-            )
+        exercises_data = WorkoutUtils.gerar_dados_exercicios(session)
 
         current_exercise_ids = [
             we.exercise.id for we in session.get_workout_exercises()

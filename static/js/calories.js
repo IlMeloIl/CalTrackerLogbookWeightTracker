@@ -98,21 +98,33 @@ function editFood(id, name, servingSize, calories, protein, carbs, fat) {
     openFoodModal(id, name, servingSize, calories, protein, carbs, fat);
 }
 
+function criarFormularioExclusao(action, redirectUrl = null) {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = action;
+
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrfmiddlewaretoken';
+    csrfInput.value = csrfToken;
+    form.appendChild(csrfInput);
+
+    if (redirectUrl) {
+        const redirectInput = document.createElement('input');
+        redirectInput.type = 'hidden';
+        redirectInput.name = 'next';
+        redirectInput.value = redirectUrl;
+        form.appendChild(redirectInput);
+    }
+
+    document.body.appendChild(form);
+    form.submit();
+}
+
 function deleteFood(id, name) {
     if (confirm(`Tem certeza que deseja excluir o alimento "${name}"?`)) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/tracker/foods/${id}/delete/`;
-
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        const csrfInput = document.createElement('input');
-        csrfInput.type = 'hidden';
-        csrfInput.name = 'csrfmiddlewaretoken';
-        csrfInput.value = csrfToken;
-        form.appendChild(csrfInput);
-
-        document.body.appendChild(form);
-        form.submit();
+        criarFormularioExclusao(`/tracker/foods/${id}/delete/`, '/tracker/log/');
     }
 }
 
@@ -156,19 +168,7 @@ function deleteDailyLogFromButton(element) {
 
 function deleteDailyLog(logId, foodName, quantity) {
     if (confirm(`Tem certeza que deseja remover ${quantity}g de "${foodName}" do seu diário?`)) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/tracker/log/${logId}/delete/`;
-
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        const csrfInput = document.createElement('input');
-        csrfInput.type = 'hidden';
-        csrfInput.name = 'csrfmiddlewaretoken';
-        csrfInput.value = csrfToken;
-        form.appendChild(csrfInput);
-
-        document.body.appendChild(form);
-        form.submit();
+        criarFormularioExclusao(`/tracker/log/${logId}/delete/`);
     }
 }
 
@@ -178,7 +178,7 @@ document.addEventListener('DOMContentLoaded', function() {
         new Sortable(foodList, {
             handle: '.bi-grip-vertical',
             animation: 150,
-            onEnd: function(evt) {
+            onEnd: function() {
                 const foodIds = Array.from(foodList.children).map(li =>
                     li.getAttribute('data-food-id')
                 );

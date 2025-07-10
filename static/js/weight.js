@@ -180,7 +180,7 @@ function excluirRegistroPesoFromButton(element) {
     excluirRegistroPeso(id);
 }
 
-function atualizarGrafico(dias) {
+function updateChart(dias) {
     fetch(`/weight/chart-data/?days=${dias}`)
         .then(response => response.json())
         .then(data => {
@@ -195,9 +195,7 @@ function atualizarGrafico(dias) {
         });
 }
 
-function updateChart(dias) {
-    atualizarGrafico(dias);
-}
+
 
 document.addEventListener('DOMContentLoaded', function() {
     initWeightChart();
