@@ -26,17 +26,45 @@
   <div class="row">
     <div class="col-lg-8">
       <div class="card">
-        <div class="card-header">
-          <h5 class="mb-0">Exercícios</h5>
-          <small class="text-muted">Os dados são salvos automaticamente quando preenchidos</small>
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <div>
+            <h5 class="mb-0">Exercícios</h5>
+            <small class="text-muted">Os dados são salvos automaticamente quando preenchidos</small>
+          </div>
+          <div>
+            <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#addExerciseModal">
+              <i class="bi bi-plus-circle"></i> Adicionar Exercício
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="toggleEditMode">
+              <i class="bi bi-pencil"></i> Editar Treino
+            </button>
+          </div>
         </div>
         <div class="card-body">
-          {% for exercise_data in exercises_data %}
-            <div class="exercise-section mb-4">
-              <div class="d-flex justify-content-between align-items-center mb-3">
-                <h6 class="mb-0">{{ exercise_data.exercise.name }}</h6>
-                <span class="badge bg-secondary">{{ exercise_data.routine_exercise.sets }} série{{ exercise_data.routine_exercise.sets|pluralize }}</span>
-              </div>
+          <div id="exercise-list">
+            {% for exercise_data in exercises_data %}
+              <div class="exercise-section mb-4" data-exercise-id="{{ exercise_data.exercise.id }}">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <div class="d-flex align-items-center">
+                    <i class="bi bi-grip-vertical text-muted me-2 drag-handle" style="display: none; cursor: move;"></i>
+                    <h6 class="mb-0">{{ exercise_data.exercise.name }}</h6>
+                  </div>
+                  <div class="d-flex align-items-center">
+                    <span class="badge bg-secondary me-2">{{ exercise_data.workout_exercise.sets }} série{{ exercise_data.workout_exercise.sets|pluralize }}</span>
+                    <div class="edit-controls" style="display: none;">
+                      <button type="button" class="btn btn-sm btn-outline-primary me-1 edit-sets-btn"
+                              data-exercise-id="{{ exercise_data.exercise.id }}"
+                              data-current-sets="{{ exercise_data.workout_exercise.sets }}">
+                        <i class="bi bi-pencil"></i>
+                      </button>
+                      <button type="button" class="btn btn-sm btn-outline-danger remove-exercise-btn"
+                              data-exercise-id="{{ exercise_data.exercise.id }}"
+                              data-exercise-name="{{ exercise_data.exercise.name }}">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               
               {% if exercise_data.exercise.description %}
                 <p class="text-muted small mb-3">{{ exercise_data.exercise.description }}</p>
@@ -99,6 +127,7 @@
             </div>
             {% if not forloop.last %}<hr>{% endif %}
           {% endfor %}
+          </div>
         </div>
       </div>
     </div>
@@ -123,11 +152,309 @@
       </div>
     </div>
   </div>
+
+  <div class="modal fade" id="addExerciseModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Adicionar Exercício ao Treino</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="addExerciseForm">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label for="exerciseSelect" class="form-label">Exercício</label>
+              <select class="form-select" id="exerciseSelect" name="exercise_id" required>
+                <option value="">Selecione um exercício</option>
+                {% for exercise in available_exercises %}
+                  <option value="{{ exercise.id }}">{{ exercise.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label for="exerciseSets" class="form-label">Número de Séries</label>
+              <input type="number" class="form-control" id="exerciseSets" name="sets" value="3" min="1" max="20" required>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-primary" onclick="addExercise()">Adicionar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="editSetsModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Editar Séries</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="editSetsForm">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label for="newSets" class="form-label">Número de Séries</label>
+              <input type="number" class="form-control" id="newSets" name="sets" min="1" max="20" required>
+            </div>
+            <input type="hidden" id="editExerciseId" name="exercise_id">
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-primary" onclick="updateSets()">Salvar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="application/json" id="workout-data">{
+    "sessionId": {{ session.pk }},
+    "urls": {
+      "reorderExercises": "{% url 'logbook:reorder_workout_exercises' session.pk %}",
+      "addExercise": "{% url 'logbook:add_exercise_to_workout' session.pk %}",
+      "removeExercise": "{% url 'logbook:remove_exercise_from_workout' session.pk 0 %}",
+      "updateSets": "{% url 'logbook:update_workout_exercise_sets' session.pk 0 %}",
+      "logSet": "/logbook/treino/{{ session.pk }}/log/{exerciseId}/{setNumber}/"
+    }
+  }</script>
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
+
+let editMode = false;
+let sortable = null;
+let workoutData = null;
+
 document.addEventListener('DOMContentLoaded', function() {
+    const dataEl = document.getElementById('workout-data');
+    if (dataEl) {
+        workoutData = JSON.parse(dataEl.textContent);
+        console.log('Dados do treino carregados:', workoutData);
+    }
+});
+
+function toggleEditMode() {
+    editMode = !editMode;
+    const editButton = document.getElementById('toggleEditMode');
+    const dragHandles = document.querySelectorAll('.drag-handle');
+    const editControls = document.querySelectorAll('.edit-controls');
+
+    if (editMode) {
+        editButton.innerHTML = '<i class="bi bi-check"></i> Finalizar Edição';
+        editButton.className = 'btn btn-sm btn-success';
+        dragHandles.forEach(handle => handle.style.display = 'inline');
+        editControls.forEach(control => control.style.display = 'inline-block');
+
+        const exerciseList = document.getElementById('exercise-list');
+
+        sortable = new Sortable(exerciseList, {
+            handle: '.drag-handle',
+            animation: 150,
+            draggable: '.exercise-section',
+            onEnd: function(evt) {
+                console.log('Sortable onEnd triggered');
+                setTimeout(reorderExercises, 100);
+            }
+        });
+    } else {
+        editButton.innerHTML = '<i class="bi bi-pencil"></i> Editar Treino';
+        editButton.className = 'btn btn-sm btn-outline-secondary';
+        dragHandles.forEach(handle => handle.style.display = 'none');
+        editControls.forEach(control => control.style.display = 'none');
+
+        if (sortable) {
+            sortable.destroy();
+            sortable = null;
+        }
+    }
+}
+
+function reorderExercises() {
+    console.log('=== Iniciando reordenação ===');
+
+    const exerciseList = document.getElementById('exercise-list');
+    if (!exerciseList) {
+        console.error('Element exercise-list não encontrado');
+        return;
+    }
+
+    const exerciseSections = exerciseList.querySelectorAll('.exercise-section');
+    console.log('Seções encontradas:', exerciseSections.length);
+
+    const exerciseIds = [];
+    exerciseSections.forEach((section, index) => {
+        const id = section.getAttribute('data-exercise-id');
+        console.log(`Seção ${index}: ID = "${id}"`);
+        if (id && id.trim() && id !== 'null' && id !== 'undefined') {
+            exerciseIds.push(id.trim());
+        }
+    });
+
+    console.log('IDs válidos coletados:', exerciseIds);
+
+    if (exerciseIds.length === 0) {
+        console.error('Nenhum ID de exercício válido encontrado');
+        alert('Erro: Nenhum exercício válido encontrado para reordenar');
+        return;
+    }
+
+    if (!workoutData) {
+        console.error('Dados do treino não carregados');
+        return;
+    }
+
+    fetch(workoutData.urls.reorderExercises, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: exerciseIds.map(id => `exercise_ids[]=${id}`).join('&')
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Response data:', data);
+        if (!data.success) {
+            alert('Erro ao reordenar exercícios: ' + data.error);
+            location.reload();
+        } else {
+            console.log('Reordenação bem-sucedida');
+        }
+    })
+    .catch(error => {
+        console.error('Erro na requisição:', error);
+        alert('Erro ao reordenar exercícios: ' + error.message);
+        location.reload();
+    });
+}
+
+function addExercise() {
+    if (!workoutData) {
+        console.error('Dados do treino não carregados');
+        return;
+    }
+
+    const form = document.getElementById('addExerciseForm');
+    const formData = new FormData(form);
+
+    fetch(workoutData.urls.addExercise, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Erro ao adicionar exercício: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        alert('Erro ao adicionar exercício');
+    });
+}
+
+function removeExercise(exerciseId, exerciseName) {
+    if (!workoutData) {
+        console.error('Dados do treino não carregados');
+        return;
+    }
+
+    if (!confirm(`Tem certeza que deseja remover "${exerciseName}" do treino? Todos os dados registrados para este exercício serão perdidos.`)) {
+        return;
+    }
+
+    fetch(workoutData.urls.removeExercise.replace('0', exerciseId), {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Erro ao remover exercício: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        alert('Erro ao remover exercício');
+    });
+}
+
+function editSets(exerciseId, currentSets) {
+    document.getElementById('editExerciseId').value = exerciseId;
+    document.getElementById('newSets').value = currentSets;
+    new bootstrap.Modal(document.getElementById('editSetsModal')).show();
+}
+
+function updateSets() {
+    if (!workoutData) {
+        console.error('Dados do treino não carregados');
+        return;
+    }
+
+    const form = document.getElementById('editSetsForm');
+    const formData = new FormData(form);
+    const exerciseId = formData.get('exercise_id');
+
+    fetch(workoutData.urls.updateSets.replace('0', exerciseId), {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Erro ao atualizar séries: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        alert('Erro ao atualizar séries');
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('toggleEditMode').addEventListener('click', toggleEditMode);
+
+    document.getElementById('addExerciseModal').addEventListener('hidden.bs.modal', function() {
+        document.getElementById('addExerciseForm').reset();
+    });
+
+    document.getElementById('editSetsModal').addEventListener('hidden.bs.modal', function() {
+        document.getElementById('editSetsForm').reset();
+    });
+
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.edit-sets-btn')) {
+            const btn = e.target.closest('.edit-sets-btn');
+            const exerciseId = btn.getAttribute('data-exercise-id');
+            const currentSets = btn.getAttribute('data-current-sets');
+            editSets(exerciseId, currentSets);
+        }
+
+        if (e.target.closest('.remove-exercise-btn')) {
+            const btn = e.target.closest('.remove-exercise-btn');
+            const exerciseId = btn.getAttribute('data-exercise-id');
+            const exerciseName = btn.getAttribute('data-exercise-name');
+            removeExercise(exerciseId, exerciseName);
+        }
+    });
+
     const setForms = document.querySelectorAll('.set-form');
     const saveTimeouts = new Map();
     
@@ -179,7 +506,11 @@ document.addEventListener('DOMContentLoaded', function() {
         saveFeedback.style.display = 'none';
         saveError.style.display = 'none';
         
-        fetch(`/logbook/treino/${sessionId}/log/${exerciseId}/${setNumber}/`, {
+        const logUrl = workoutData.urls.logSet
+            .replace('{exerciseId}', exerciseId)
+            .replace('{setNumber}', setNumber);
+
+        fetch(logUrl, {
             method: 'POST',
             body: formData,
             headers: {

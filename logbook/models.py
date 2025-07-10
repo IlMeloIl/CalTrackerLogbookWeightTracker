@@ -146,11 +146,52 @@ class WorkoutSession(models.Model):
         return exercises
 
     def get_completion_percentage(self):
-        total_planned = self.routine.get_total_planned_sets()
+        total_planned = self.get_total_planned_sets()
         if total_planned == 0:
             return 0
         completed = self.set_logs.count()
         return min(100, (completed / total_planned) * 100)
+
+    def initialize_workout_exercises(self):
+        if self.workout_exercises.exists():
+            return
+
+        for routine_exercise in self.routine.routine_exercises.all():
+            WorkoutExercise.objects.create(
+                workout_session=self,
+                exercise=routine_exercise.exercise,
+                order=routine_exercise.order,
+                sets=routine_exercise.sets,
+            )
+
+    def get_workout_exercises(self):
+        if not self.workout_exercises.exists():
+            self.initialize_workout_exercises()
+        return self.workout_exercises.all()
+
+    def get_total_planned_sets(self):
+        return sum(we.sets for we in self.get_workout_exercises())
+
+
+class WorkoutExercise(models.Model):
+    workout_session = models.ForeignKey(
+        WorkoutSession, on_delete=models.CASCADE, related_name="workout_exercises"
+    )
+    exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE)
+    order = models.PositiveIntegerField(help_text="Ordem do exercício no treino")
+    sets = models.PositiveIntegerField(help_text="Número de séries para este treino")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["order"]
+        unique_together = ["workout_session", "exercise"]
+
+    def clean(self):
+        if self.sets and (self.sets < 1 or self.sets > 20):
+            raise ValidationError("Número de séries deve estar entre 1 e 20.")
+
+    def __str__(self):
+        return f"{self.workout_session} - {self.exercise.name} ({self.sets} séries)"
 
 
 class SetLog(models.Model):

@@ -64,6 +64,26 @@ urlpatterns = [
         views.CancelWorkoutView.as_view(),
         name="cancel_workout",
     ),
+    path(
+        "treino/<int:session_id>/reorder-exercises/",
+        views.ReorderWorkoutExercisesView.as_view(),
+        name="reorder_workout_exercises",
+    ),
+    path(
+        "treino/<int:session_id>/add-exercise/",
+        views.AddExerciseToWorkoutView.as_view(),
+        name="add_exercise_to_workout",
+    ),
+    path(
+        "treino/<int:session_id>/remove-exercise/<int:exercise_id>/",
+        views.RemoveExerciseFromWorkoutView.as_view(),
+        name="remove_exercise_from_workout",
+    ),
+    path(
+        "treino/<int:session_id>/update-sets/<int:exercise_id>/",
+        views.UpdateWorkoutExerciseSetsView.as_view(),
+        name="update_workout_exercise_sets",
+    ),
     path("exercicios/", views.ExerciseListView.as_view(), name="exercise_list"),
     path("exercicios/add/", views.ExerciseCreateView.as_view(), name="exercise_add"),
     path(

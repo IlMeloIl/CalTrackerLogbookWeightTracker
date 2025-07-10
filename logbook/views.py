@@ -16,7 +16,14 @@ from django.http import JsonResponse
 from django.views import View
 from django.utils import timezone
 from datetime import date, timedelta
-from .models import Routine, Exercise, RoutineExercise, WorkoutSession, SetLog
+from .models import (
+    Routine,
+    Exercise,
+    RoutineExercise,
+    WorkoutSession,
+    SetLog,
+    WorkoutExercise,
+)
 from .forms import (
     RoutineForm,
     ExerciseForm,
@@ -359,6 +366,7 @@ class StartWorkoutView(LoginRequiredMixin, View):
                 workout_session = WorkoutSession.objects.create(
                     user=request.user, routine=routine, date=workout_date
                 )
+                workout_session.initialize_workout_exercises()
 
                 messages.success(
                     request,
@@ -391,15 +399,15 @@ class WorkoutSessionView(LoginRequiredMixin, DetailView):
             messages.warning(self.request, "Esta sessão de treino não está mais ativa.")
 
         exercises_data = []
-        for routine_exercise in session.routine.routine_exercises.all():
-            exercise = routine_exercise.exercise
+        for workout_exercise in session.get_workout_exercises():
+            exercise = workout_exercise.exercise
 
             existing_logs = SetLog.objects.filter(
                 workout_session=session, exercise=exercise
             ).order_by("set_number")
 
             forms = []
-            for set_num in range(1, routine_exercise.sets + 1):
+            for set_num in range(1, workout_exercise.sets + 1):
                 existing_log = existing_logs.filter(set_number=set_num).first()
 
                 if existing_log:
@@ -414,14 +422,24 @@ class WorkoutSessionView(LoginRequiredMixin, DetailView):
             exercises_data.append(
                 {
                     "exercise": exercise,
-                    "routine_exercise": routine_exercise,
+                    "workout_exercise": workout_exercise,
                     "forms": forms,
                     "existing_logs": existing_logs,
                 }
             )
 
+        current_exercise_ids = [
+            we.exercise.id for we in session.get_workout_exercises()
+        ]
+        available_exercises = (
+            Exercise.objects.filter(Q(user=self.request.user) | Q(user__isnull=True))
+            .exclude(id__in=current_exercise_ids)
+            .order_by("name")
+        )
+
         context["exercises_data"] = exercises_data
         context["session_form"] = WorkoutSessionForm(instance=session)
+        context["available_exercises"] = available_exercises
         return context
 
 
@@ -433,17 +451,16 @@ class LogSetView(LoginRequiredMixin, View):
         if session.status != "active":
             return JsonResponse({"success": False, "error": "Sessão não está ativa"})
 
-        if not RoutineExercise.objects.filter(
-            routine=session.routine, exercise=exercise
-        ).exists():
+        try:
+            workout_exercise = WorkoutExercise.objects.get(
+                workout_session=session, exercise=exercise
+            )
+        except WorkoutExercise.DoesNotExist:
             return JsonResponse(
-                {"success": False, "error": "Exercício não está na rotina"}
+                {"success": False, "error": "Exercício não está no treino"}
             )
 
-        routine_exercise = RoutineExercise.objects.get(
-            routine=session.routine, exercise=exercise
-        )
-        if set_number < 1 or set_number > routine_exercise.sets:
+        if set_number < 1 or set_number > workout_exercise.sets:
             return JsonResponse({"success": False, "error": "Número de série inválido"})
 
         try:
@@ -666,10 +683,6 @@ class ExerciseProgressView(LoginRequiredMixin, TemplateView):
         return context
 
     def _prepare_chart_data(self, set_logs):
-        """
-        Prepara dados do gráfico organizados por sets.
-        Cada set terá sua própria série no gráfico.
-        """
         workout_data = {}
 
         for log in set_logs:
@@ -773,6 +786,189 @@ class ExerciseProgressView(LoginRequiredMixin, TemplateView):
         }
 
         return json.dumps(chart_data)
+
+
+class ReorderWorkoutExercisesView(LoginRequiredMixin, View):
+    def post(self, request, session_id):
+        session = get_object_or_404(WorkoutSession, id=session_id, user=request.user)
+
+        if session.status != "active":
+            return JsonResponse({"success": False, "error": "Treino não está ativo"})
+
+        exercise_ids = request.POST.getlist("exercise_ids[]")
+
+        valid_exercise_ids = []
+        for exercise_id in exercise_ids:
+            if exercise_id and exercise_id.strip() and exercise_id != "null":
+                try:
+                    valid_exercise_ids.append(int(exercise_id))
+                except ValueError:
+                    return JsonResponse(
+                        {
+                            "success": False,
+                            "error": f"ID de exercício inválido: {exercise_id}",
+                        }
+                    )
+
+        if not valid_exercise_ids:
+            return JsonResponse(
+                {"success": False, "error": "Nenhum ID de exercício válido fornecido"}
+            )
+
+        try:
+            with transaction.atomic():
+                for index, exercise_id in enumerate(valid_exercise_ids, start=1):
+                    updated = WorkoutExercise.objects.filter(
+                        workout_session=session, exercise_id=exercise_id
+                    ).update(order=index)
+
+                    if updated == 0:
+                        return JsonResponse(
+                            {
+                                "success": False,
+                                "error": f"Exercício com ID {exercise_id} não encontrado no treino",
+                            }
+                        )
+
+            return JsonResponse({"success": True})
+        except Exception as e:
+            return JsonResponse({"success": False, "error": str(e)})
+
+
+class AddExerciseToWorkoutView(LoginRequiredMixin, View):
+    def post(self, request, session_id):
+        session = get_object_or_404(WorkoutSession, id=session_id, user=request.user)
+
+        if session.status != "active":
+            return JsonResponse({"success": False, "error": "Treino não está ativo"})
+
+        exercise_id = request.POST.get("exercise_id")
+        sets = request.POST.get("sets", 3)
+
+        try:
+            sets = int(sets)
+            if sets < 1 or sets > 20:
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "error": "Número de séries deve estar entre 1 e 20",
+                    }
+                )
+        except ValueError:
+            return JsonResponse(
+                {"success": False, "error": "Número de séries inválido"}
+            )
+
+        exercise = get_object_or_404(Exercise, id=exercise_id)
+
+        if WorkoutExercise.objects.filter(
+            workout_session=session, exercise=exercise
+        ).exists():
+            return JsonResponse(
+                {"success": False, "error": "Exercício já está no treino"}
+            )
+
+        if exercise.user and exercise.user != request.user:
+            return JsonResponse({"success": False, "error": "Exercício não encontrado"})
+
+        try:
+            max_order = (
+                WorkoutExercise.objects.filter(workout_session=session).aggregate(
+                    models.Max("order")
+                )["order__max"]
+                or 0
+            )
+
+            WorkoutExercise.objects.create(
+                workout_session=session,
+                exercise=exercise,
+                order=max_order + 1,
+                sets=sets,
+            )
+
+            return JsonResponse({"success": True})
+        except Exception as e:
+            return JsonResponse({"success": False, "error": str(e)})
+
+
+class RemoveExerciseFromWorkoutView(LoginRequiredMixin, View):
+    def post(self, request, session_id, exercise_id):
+        session = get_object_or_404(WorkoutSession, id=session_id, user=request.user)
+
+        if session.status != "active":
+            return JsonResponse({"success": False, "error": "Treino não está ativo"})
+
+        try:
+            with transaction.atomic():
+                workout_exercise = WorkoutExercise.objects.get(
+                    workout_session=session, exercise_id=exercise_id
+                )
+                removed_order = workout_exercise.order
+                workout_exercise.delete()
+
+                SetLog.objects.filter(
+                    workout_session=session, exercise_id=exercise_id
+                ).delete()
+
+                WorkoutExercise.objects.filter(
+                    workout_session=session, order__gt=removed_order
+                ).update(order=models.F("order") - 1)
+
+            return JsonResponse({"success": True})
+        except WorkoutExercise.DoesNotExist:
+            return JsonResponse(
+                {"success": False, "error": "Exercício não encontrado no treino"}
+            )
+        except Exception as e:
+            return JsonResponse({"success": False, "error": str(e)})
+
+
+class UpdateWorkoutExerciseSetsView(LoginRequiredMixin, View):
+    def post(self, request, session_id, exercise_id):
+        session = get_object_or_404(WorkoutSession, id=session_id, user=request.user)
+
+        if session.status != "active":
+            return JsonResponse({"success": False, "error": "Treino não está ativo"})
+
+        sets = request.POST.get("sets")
+
+        try:
+            sets = int(sets)
+            if sets < 1 or sets > 20:
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "error": "Número de séries deve estar entre 1 e 20",
+                    }
+                )
+        except ValueError:
+            return JsonResponse(
+                {"success": False, "error": "Número de séries inválido"}
+            )
+
+        try:
+            with transaction.atomic():
+                workout_exercise = WorkoutExercise.objects.get(
+                    workout_session=session, exercise_id=exercise_id
+                )
+                old_sets = workout_exercise.sets
+                workout_exercise.sets = sets
+                workout_exercise.save()
+
+                if sets < old_sets:
+                    SetLog.objects.filter(
+                        workout_session=session,
+                        exercise_id=exercise_id,
+                        set_number__gt=sets,
+                    ).delete()
+
+            return JsonResponse({"success": True})
+        except WorkoutExercise.DoesNotExist:
+            return JsonResponse(
+                {"success": False, "error": "Exercício não encontrado no treino"}
+            )
+        except Exception as e:
+            return JsonResponse({"success": False, "error": str(e)})
 
 
 class RoutineDeleteAjaxView(LoginRequiredMixin, View):
