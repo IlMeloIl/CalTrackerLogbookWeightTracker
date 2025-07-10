@@ -135,12 +135,10 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Funcionalidade de busca de exercícios para rotinas
     const searchInputRoutine = document.getElementById('exercise-search-routine');
     const exerciseSelectRoutine = document.querySelector('select[name="exercise"]');
 
     if (searchInputRoutine && exerciseSelectRoutine) {
-        // Filtrar opções baseado na busca
         searchInputRoutine.addEventListener('input', function() {
             const searchTerm = this.value.toLowerCase();
             const options = exerciseSelectRoutine.options;
@@ -157,7 +155,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // Permitir seleção por Enter
         searchInputRoutine.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
@@ -175,7 +172,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // Sincronizar quando selecionado no dropdown
         exerciseSelectRoutine.addEventListener('change', function() {
             const selectedOption = this.options[this.selectedIndex];
             if (selectedOption.value) {

@@ -9,14 +9,11 @@ from django.views.generic import (
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
 from django.shortcuts import get_object_or_404, redirect, render
-from django.db import models, IntegrityError
+from django.db import models, IntegrityError, transaction
 from django.db.models import Q
-from .models import Routine, Exercise, RoutineExercise
-from .forms import RoutineForm, ExerciseForm, RoutineExerciseForm
 from django.contrib import messages
 from django.http import JsonResponse
 from django.views import View
-from django.db import models, transaction
 from django.utils import timezone
 from datetime import date, timedelta
 from .models import Routine, Exercise, RoutineExercise, WorkoutSession, SetLog
@@ -216,7 +213,8 @@ class ExerciseDeleteView(LoginRequiredMixin, DeleteView):
 
             messages.error(
                 request,
-                f'Não é possível excluir este exercício. Ele está sendo usado nas rotinas: {", ".join(routine_names)}',
+                f"Não é possível excluir este exercício. Ele está sendo usado "
+                f'nas rotinas: {", ".join(routine_names)}',
             )
             return redirect("logbook:exercise_list")
 
@@ -245,7 +243,8 @@ class AddExerciseToRoutineView(LoginRequiredMixin, View):
                     routine_exercise.save()
                     messages.success(
                         request,
-                        f'Exercício "{routine_exercise.exercise.name}" adicionado à rotina!',
+                        f'Exercício "{routine_exercise.exercise.name}" '
+                        f"adicionado à rotina!",
                     )
             except IntegrityError:
                 messages.error(request, "Este exercício já está na rotina.")
@@ -319,7 +318,8 @@ class StartWorkoutView(LoginRequiredMixin, View):
         if not routine.can_start_workout():
             messages.error(
                 request,
-                "Esta rotina não possui exercícios. Adicione exercícios antes de iniciar o treino.",
+                "Esta rotina não possui exercícios. Adicione exercícios "
+                "antes de iniciar o treino.",
             )
             return redirect("logbook:routine_detail", pk=routine_id)
 
@@ -345,7 +345,8 @@ class StartWorkoutView(LoginRequiredMixin, View):
         if not routine.can_start_workout():
             messages.error(
                 request,
-                "Esta rotina não possui exercícios. Adicione exercícios antes de iniciar o treino.",
+                "Esta rotina não possui exercícios. Adicione exercícios "
+                "antes de iniciar o treino.",
             )
             return redirect("logbook:routine_detail", pk=routine_id)
 
@@ -361,7 +362,8 @@ class StartWorkoutView(LoginRequiredMixin, View):
 
                 messages.success(
                     request,
-                    f'Treino "{routine.name}" iniciado para {workout_date.strftime("%d/%m/%Y")}!',
+                    f'Treino "{routine.name}" iniciado para '
+                    f'{workout_date.strftime("%d/%m/%Y")}!',
                 )
                 return redirect("logbook:workout_session", pk=workout_session.pk)
             except IntegrityError:
@@ -557,7 +559,6 @@ class ExerciseProgressView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         user = self.request.user
 
-        # Incluir exercícios do usuário e exercícios globais
         user_exercises = Exercise.objects.filter(
             Q(user=user) | Q(user__isnull=True)
         ).order_by("name")
@@ -572,7 +573,6 @@ class ExerciseProgressView(LoginRequiredMixin, TemplateView):
 
         if exercise_id:
             try:
-                # Permitir exercícios do usuário ou exercícios globais (sem usuário)
                 selected_exercise = (
                     Exercise.objects.filter(id=exercise_id)
                     .filter(Q(user=user) | Q(user__isnull=True))
@@ -593,7 +593,6 @@ class ExerciseProgressView(LoginRequiredMixin, TemplateView):
                 ).order_by("workout_session__date", "set_number")
 
                 if set_logs.exists():
-                    # Calcular estatísticas detalhadas
                     total_workouts = (
                         set_logs.values("workout_session").distinct().count()
                     )
@@ -602,7 +601,6 @@ class ExerciseProgressView(LoginRequiredMixin, TemplateView):
                         set_logs.aggregate(models.Max("weight"))["weight__max"] or 0
                     )
 
-                    # Calcular número de sets únicos por treino
                     sets_per_workout = {}
                     for log in set_logs:
                         workout_id = log.workout_session.id
@@ -622,7 +620,6 @@ class ExerciseProgressView(LoginRequiredMixin, TemplateView):
                         else 0
                     )
 
-                    # Peso médio
                     avg_weight = (
                         set_logs.aggregate(models.Avg("weight"))["weight__avg"] or 0
                     )
@@ -638,7 +635,6 @@ class ExerciseProgressView(LoginRequiredMixin, TemplateView):
 
                     chart_data = self._prepare_chart_data(set_logs)
 
-                    # Pegar os 10 sets mais recentes para mostrar na tabela
                     recent_sets = set_logs.order_by(
                         "-workout_session__date", "-set_number"
                     )[:10]
@@ -674,7 +670,6 @@ class ExerciseProgressView(LoginRequiredMixin, TemplateView):
         Prepara dados do gráfico organizados por sets.
         Cada set terá sua própria série no gráfico.
         """
-        # Organizar dados por data de treino e número do set
         workout_data = {}
 
         for log in set_logs:
@@ -695,14 +690,12 @@ class ExerciseProgressView(LoginRequiredMixin, TemplateView):
                 }
             )
 
-        # Encontrar todos os números de sets únicos
         all_set_numbers = set()
         for date_data in workout_data.values():
             all_set_numbers.update(date_data.keys())
 
         all_set_numbers = sorted(all_set_numbers)
 
-        # Preparar dados para cada set
         datasets = []
         colors = [
             "#dc3545",  # Vermelho
@@ -720,13 +713,10 @@ class ExerciseProgressView(LoginRequiredMixin, TemplateView):
         for i, set_num in enumerate(all_set_numbers):
             color = colors[i % len(colors)]
 
-            # Dados para este set específico
             set_data = []
 
             for workout_date in sorted_dates:
                 if set_num in workout_data[workout_date]:
-                    # Se há múltiplas entradas para o mesmo set na mesma data,
-                    # usar o peso máximo
                     max_weight = max(
                         entry["weight"] for entry in workout_data[workout_date][set_num]
                     )
@@ -734,7 +724,6 @@ class ExerciseProgressView(LoginRequiredMixin, TemplateView):
                         {"x": workout_date.strftime("%Y-%m-%d"), "y": max_weight}
                     )
                 else:
-                    # Se não há dados para este set nesta data, adicionar null
                     set_data.append({"x": workout_date.strftime("%Y-%m-%d"), "y": None})
 
             datasets.append(
@@ -747,11 +736,10 @@ class ExerciseProgressView(LoginRequiredMixin, TemplateView):
                     "fill": False,
                     "pointRadius": 4,
                     "pointHoverRadius": 6,
-                    "connectNulls": False,  # Não conectar pontos quando há valores null
+                    "connectNulls": False,
                 }
             )
 
-        # Adicionar série com peso máximo geral por treino
         max_weight_data = []
         for workout_date in sorted_dates:
             max_weight = 0
@@ -791,7 +779,6 @@ class RoutineDeleteAjaxView(LoginRequiredMixin, View):
     def post(self, request, pk):
         routine = get_object_or_404(Routine, pk=pk, user=request.user)
 
-        # Verificar se há treinos ativos
         active_sessions = WorkoutSession.objects.filter(
             routine=routine, status="active"
         )
@@ -825,12 +812,16 @@ class RoutineUpdateAjaxView(LoginRequiredMixin, View):
                 return JsonResponse(
                     {
                         "success": True,
-                        "message": f'Rotina "{form.instance.name}" atualizada com sucesso!',
+                        "message": f'Rotina "{form.instance.name}" '
+                        f"atualizada com sucesso!",
                     }
                 )
             except IntegrityError:
                 return JsonResponse(
-                    {"success": False, "error": "Você já tem uma rotina com este nome."}
+                    {
+                        "success": False,
+                        "error": "Você já tem uma rotina com este nome.",
+                    }
                 )
         else:
             return JsonResponse({"success": False, "errors": form.errors})
@@ -840,7 +831,6 @@ class ExerciseDeleteAjaxView(LoginRequiredMixin, View):
     def post(self, request, pk):
         exercise = get_object_or_404(Exercise, pk=pk, user=request.user)
 
-        # Verificar se o exercício está sendo usado em rotinas
         routine_uses = RoutineExercise.objects.filter(
             exercise=exercise, routine__user=request.user
         )
@@ -853,7 +843,8 @@ class ExerciseDeleteAjaxView(LoginRequiredMixin, View):
             return JsonResponse(
                 {
                     "success": False,
-                    "error": f'Não é possível excluir este exercício. Ele está sendo usado nas rotinas: {", ".join(routine_names)}',
+                    "error": f"Não é possível excluir este exercício. Ele está "
+                    f'sendo usado nas rotinas: {", ".join(routine_names)}',
                 }
             )
 

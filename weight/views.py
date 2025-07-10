@@ -1,5 +1,5 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.urls import reverse_lazy
+
 from django.shortcuts import render, redirect
 from django.views import View
 from django.contrib import messages
@@ -17,9 +17,8 @@ class WeightTrackerView(LoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
         form = WeightEntryForm(initial={"date": date.today()})
 
-        # Paginação para o histórico
         all_entries = WeightEntry.objects.filter(user=request.user)
-        paginator = Paginator(all_entries, 10)  # 10 entradas por página
+        paginator = Paginator(all_entries, 10)
         page_number = request.GET.get("page")
         entries = paginator.get_page(page_number)
 
@@ -43,7 +42,8 @@ class WeightTrackerView(LoginRequiredMixin, View):
                 entry.save()
                 messages.success(
                     request,
-                    f'Peso de {entry.weight_kg}kg registrado para {entry.date.strftime("%d/%m/%Y")}!',
+                    f"Peso de {entry.weight_kg}kg registrado para "
+                    f'{entry.date.strftime("%d/%m/%Y")}!',
                 )
                 return redirect("weight:tracker")
             except Exception as e:
@@ -56,7 +56,6 @@ class WeightTrackerView(LoginRequiredMixin, View):
                         request, "Erro ao salvar o registro. Tente novamente."
                     )
 
-        # Paginação para o histórico
         all_entries = WeightEntry.objects.filter(user=request.user)
         paginator = Paginator(all_entries, 10)
         page_number = request.GET.get("page")

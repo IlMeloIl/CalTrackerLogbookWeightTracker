@@ -65,6 +65,3 @@ class DailyLog(models.Model):
     @property
     def calculated_fat(self):
         return (self.food.fat * self.nutritional_factor).quantize(Decimal("0.01"))
-
-    def __str__(self):
-        return f"{self.user.username} - {self.food.name} em {self.date}"

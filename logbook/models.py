@@ -182,4 +182,7 @@ class SetLog(models.Model):
             raise ValidationError("Número da série deve estar entre 1 e 20.")
 
     def __str__(self):
-        return f"{self.exercise.name} - Série {self.set_number}: {self.weight}kg x {self.reps} reps"
+        return (
+            f"{self.exercise.name} - Série {self.set_number}: "
+            f"{self.weight}kg x {self.reps} reps"
+        )

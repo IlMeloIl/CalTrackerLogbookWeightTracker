@@ -62,31 +62,25 @@ class WeightEntry(models.Model):
                 "weekly_rate": None,
             }
 
-        # Dados básicos
         labels = [entry.date.strftime("%d/%m") for entry in entries]
         data = [float(entry.weight_kg) for entry in entries]
         dates = [entry.date.strftime("%Y-%m-%d") for entry in entries]
 
-        # Calcular moving average (média móvel de 7 dias)
         moving_average = []
         for i, entry in enumerate(entries):
-            if i < 6:  # Primeiros 6 pontos não têm média móvel completa
+            if i < 6:
                 moving_average.append(None)
             else:
-                # Média dos últimos 7 pontos
                 recent_weights = [
                     float(entries[j].weight_kg) for j in range(i - 6, i + 1)
                 ]
                 avg = sum(recent_weights) / len(recent_weights)
                 moving_average.append(round(avg, 2))
 
-        # Calcular weekly rate (taxa semanal de mudança)
         weekly_rate = None
-        if len(entries) >= 14:  # Precisa de pelo menos 2 semanas de dados
-            # Converter para lista para permitir indexação negativa
+        if len(entries) >= 14:
             entries_list = list(entries)
 
-            # Comparar média da primeira semana com média da última semana
             first_week = entries_list[:7]
             last_week = entries_list[-7:]
 

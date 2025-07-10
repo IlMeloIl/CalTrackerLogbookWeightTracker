@@ -17,7 +17,6 @@
       </div>
     </div>
 
-    <!-- Seção de Gerenciamento de Alimentos -->
     <div class="card mb-4">
       <div class="card-header">
         <ul class="nav nav-tabs card-header-tabs" id="food-tabs" role="tablist">
@@ -31,13 +30,12 @@
       </div>
       <div class="card-body">
         <div class="tab-content" id="food-tab-content">
-          <!-- Aba Adicionar ao Diário -->
           <div class="tab-pane fade show active" id="add-food" role="tabpanel">
             <h6 class="mb-3">Selecione um Alimento</h6>
             <div class="row g-2" id="food-cards">
               {% for food in user_foods %}
                 <div class="col-12">
-                  <div class="card food-card h-100" style="cursor: pointer;" onclick="openAddFoodModal({{ food.id }}, '{{ food.name }}', {{ food.serving_size_grams }}, {{ food.calories }}, {{ food.protein }}, {{ food.carbs }}, {{ food.fat }})">
+                  <div class="card food-card h-100" style="cursor: pointer;" data-food-id="{{ food.id }}" data-food-name="{{ food.name }}" data-serving-size="{{ food.serving_size_grams|floatformat:'2' }}" data-calories="{{ food.calories }}" data-protein="{{ food.protein|floatformat:'2' }}" data-carbs="{{ food.carbs|floatformat:'2' }}" data-fat="{{ food.fat|floatformat:'2' }}" onclick="openAddFoodModalFromCard(this)">
                     <div class="card-body p-3">
                       <h6 class="card-title mb-1">{{ food.name }}</h6>
                       <div class="text-muted small">
@@ -55,7 +53,6 @@
             </div>
           </div>
 
-          <!-- Aba Meus Alimentos -->
           <div class="tab-pane fade" id="my-foods" role="tabpanel">
             <div class="d-flex justify-content-between align-items-center mb-3">
               <h6 class="mb-0">Gerenciar Alimentos</h6>
@@ -71,10 +68,10 @@
                     <div class="text-muted small">{{ food.calories }} kcal ({{ food.serving_size_grams|floatformat:"0" }}g)</div>
                   </div>
                   <div>
-                    <button type="button" class="btn btn-sm btn-outline-secondary me-1" onclick="editFood({{ food.id }}, '{{ food.name }}', {{ food.serving_size_grams }}, {{ food.calories }}, {{ food.protein }}, {{ food.carbs }}, {{ food.fat }})">
+                    <button type="button" class="btn btn-sm btn-outline-secondary me-1" data-food-id="{{ food.id }}" data-food-name="{{ food.name }}" data-serving-size="{{ food.serving_size_grams|floatformat:'2' }}" data-calories="{{ food.calories }}" data-protein="{{ food.protein|floatformat:'2' }}" data-carbs="{{ food.carbs|floatformat:'2' }}" data-fat="{{ food.fat|floatformat:'2' }}" onclick="editFoodFromButton(this)">
                       <i class="bi bi-pencil"></i>
                     </button>
-                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteFood({{ food.id }}, '{{ food.name }}')">
+                    <button type="button" class="btn btn-sm btn-outline-danger" data-food-id="{{ food.id }}" data-food-name="{{ food.name }}" onclick="deleteFoodFromButton(this)">
                       <i class="bi bi-trash"></i>
                     </button>
                   </div>
@@ -111,10 +108,10 @@
                   </div>
                 </div>
                 <div class="btn-group btn-group-sm" role="group">
-                  <button type="button" class="btn btn-outline-primary" onclick="editDailyLog({{ log.pk }}, '{{ log.food.name }}', {{ log.quantity_grams }})">
+                  <button type="button" class="btn btn-outline-primary" data-log-id="{{ log.pk }}" data-food-name="{{ log.food.name }}" data-quantity="{{ log.quantity_grams }}" onclick="editDailyLogFromButton(this)">
                     <i class="bi bi-pencil"></i>
                   </button>
-                  <button type="button" class="btn btn-outline-danger" onclick="deleteDailyLog({{ log.pk }}, '{{ log.food.name }}', {{ log.quantity_grams }})">
+                  <button type="button" class="btn btn-outline-danger" data-log-id="{{ log.pk }}" data-food-name="{{ log.food.name }}" data-quantity="{{ log.quantity_grams }}" onclick="deleteDailyLogFromButton(this)">
                     <i class="bi bi-trash"></i>
                   </button>
                 </div>
@@ -139,7 +136,6 @@
   </div>
 </div>
 
-<!-- Modal para Adicionar Alimento ao Diário -->
 <div class="modal fade" id="addFoodModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -173,7 +169,6 @@
   </div>
 </div>
 
-<!-- Modal para Gerenciar Alimentos -->
 <div class="modal fade" id="foodModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -227,7 +222,6 @@
   </div>
 </div>
 
-<!-- Modal para Editar Registro do Diário -->
 <div class="modal fade" id="editDailyLogModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -285,7 +279,7 @@
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
-// Função para abrir modal de adicionar alimento ao diário
+
 function openAddFoodModal(foodId, foodName, servingSize, calories, protein, carbs, fat) {
     document.getElementById('selected_food_id').value = foodId;
     document.getElementById('selected_food_name').textContent = foodName;
@@ -293,10 +287,10 @@ function openAddFoodModal(foodId, foodName, servingSize, calories, protein, carb
         `${calories} kcal | P: ${protein}g, C: ${carbs}g, F: ${fat}g (por ${servingSize}g)`;
     document.getElementById('quantity_input').value = servingSize;
 
-    // Calcular preview inicial
+    
     updateNutritionPreview(servingSize, calories, protein, carbs, fat, servingSize);
 
-    // Adicionar listener para atualizar preview em tempo real
+    
     document.getElementById('quantity_input').oninput = function() {
         const quantity = parseFloat(this.value) || 0;
         updateNutritionPreview(quantity, calories, protein, carbs, fat, servingSize);
@@ -305,7 +299,20 @@ function openAddFoodModal(foodId, foodName, servingSize, calories, protein, carb
     new bootstrap.Modal(document.getElementById('addFoodModal')).show();
 }
 
-// Função para atualizar preview nutricional
+
+function openAddFoodModalFromCard(element) {
+    const foodId = element.dataset.foodId;
+    const foodName = element.dataset.foodName;
+    const servingSize = parseFloat(element.dataset.servingSize);
+    const calories = parseInt(element.dataset.calories);
+    const protein = parseFloat(element.dataset.protein);
+    const carbs = parseFloat(element.dataset.carbs);
+    const fat = parseFloat(element.dataset.fat);
+
+    openAddFoodModal(foodId, foodName, servingSize, calories, protein, carbs, fat);
+}
+
+
 function updateNutritionPreview(quantity, calories, protein, carbs, fat, servingSize) {
     const factor = quantity / servingSize;
     const calcCalories = Math.round(calories * factor);
@@ -318,7 +325,7 @@ function updateNutritionPreview(quantity, calories, protein, carbs, fat, serving
     document.getElementById('nutrition_preview').style.display = 'block';
 }
 
-// Função para abrir modal de gerenciar alimentos
+
 function openFoodModal() {
     document.getElementById('foodModalTitle').textContent = 'Adicionar Alimento';
     document.getElementById('foodForm').reset();
@@ -326,7 +333,7 @@ function openFoodModal() {
     new bootstrap.Modal(document.getElementById('foodModal')).show();
 }
 
-// Função para editar alimento
+
 function editFood(id, name, servingSize, calories, protein, carbs, fat) {
     document.getElementById('foodModalTitle').textContent = 'Editar Alimento';
     document.getElementById('food_id').value = id;
@@ -339,7 +346,20 @@ function editFood(id, name, servingSize, calories, protein, carbs, fat) {
     new bootstrap.Modal(document.getElementById('foodModal')).show();
 }
 
-// Função para deletar alimento
+
+function editFoodFromButton(element) {
+    const id = element.dataset.foodId;
+    const name = element.dataset.foodName;
+    const servingSize = parseFloat(element.dataset.servingSize);
+    const calories = parseInt(element.dataset.calories);
+    const protein = parseFloat(element.dataset.protein);
+    const carbs = parseFloat(element.dataset.carbs);
+    const fat = parseFloat(element.dataset.fat);
+
+    editFood(id, name, servingSize, calories, protein, carbs, fat);
+}
+
+
 function deleteFood(id, name) {
     if (confirm(`Tem certeza que deseja excluir o alimento "${name}"?`)) {
         const form = document.createElement('form');
@@ -358,7 +378,15 @@ function deleteFood(id, name) {
     }
 }
 
-// Função para editar registro do diário
+
+function deleteFoodFromButton(element) {
+    const id = element.dataset.foodId;
+    const name = element.dataset.foodName;
+
+    deleteFood(id, name);
+}
+
+
 function editDailyLog(logId, foodName, currentQuantity) {
     document.getElementById('edit_log_id').value = logId;
     document.getElementById('edit_food_name').textContent = foodName;
@@ -366,7 +394,16 @@ function editDailyLog(logId, foodName, currentQuantity) {
     new bootstrap.Modal(document.getElementById('editDailyLogModal')).show();
 }
 
-// Função para deletar registro do diário
+
+function editDailyLogFromButton(element) {
+    const logId = element.dataset.logId;
+    const foodName = element.dataset.foodName;
+    const currentQuantity = parseFloat(element.dataset.quantity);
+
+    editDailyLog(logId, foodName, currentQuantity);
+}
+
+
 function deleteDailyLog(logId, foodName, quantity) {
     if (confirm(`Tem certeza que deseja remover ${quantity}g de "${foodName}" do seu diário?`)) {
         const form = document.createElement('form');
@@ -385,7 +422,16 @@ function deleteDailyLog(logId, foodName, quantity) {
     }
 }
 
-// Configurar drag and drop para reordenar alimentos
+
+function deleteDailyLogFromButton(element) {
+    const logId = element.dataset.logId;
+    const foodName = element.dataset.foodName;
+    const quantity = parseFloat(element.dataset.quantity);
+
+    deleteDailyLog(logId, foodName, quantity);
+}
+
+
 document.addEventListener('DOMContentLoaded', function() {
     const foodList = document.getElementById('food-list');
     if (foodList) {
@@ -417,7 +463,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Handlers para os formulários
+
 document.getElementById('addFoodForm').onsubmit = function(e) {
     e.preventDefault();
     const formData = new FormData(this);
@@ -472,9 +518,9 @@ document.getElementById('editDailyLogForm').onsubmit = function(e) {
     }).then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Fechar o modal
+            
             bootstrap.Modal.getInstance(document.getElementById('editDailyLogModal')).hide();
-            // Recarregar a página
+            
             location.reload();
         } else {
             alert('Erro ao editar quantidade: ' + (data.error || 'Erro desconhecido'));

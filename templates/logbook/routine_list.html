@@ -34,8 +34,8 @@
           
           <div class="btn-group w-100" role="group">
             <a href="{% url 'logbook:routine_detail' routine.pk %}" class="btn btn-primary">Ver</a>
-            <button type="button" class="btn btn-secondary" onclick="editRoutine({{ routine.pk }}, '{{ routine.name }}')">Editar</button>
-            <button type="button" class="btn btn-danger" onclick="deleteRoutine({{ routine.pk }}, '{{ routine.name }}')">Excluir</button>
+            <button type="button" class="btn btn-secondary" data-routine-id="{{ routine.pk }}" data-routine-name="{{ routine.name }}" onclick="editRoutineFromButton(this)">Editar</button>
+            <button type="button" class="btn btn-danger" data-routine-id="{{ routine.pk }}" data-routine-name="{{ routine.name }}" onclick="deleteRoutineFromButton(this)">Excluir</button>
           </div>
         </div>
       </div>
@@ -51,7 +51,6 @@
     </div>
   {% endif %}
 
-<!-- Modal para Editar Rotina -->
 <div class="modal fade" id="editRoutineModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -80,14 +79,20 @@
 
 {% block extra_js %}
 <script>
-// Função para editar rotina
+
 function editRoutine(id, name) {
     document.getElementById('edit_routine_id').value = id;
     document.getElementById('edit_routine_name').value = name;
     new bootstrap.Modal(document.getElementById('editRoutineModal')).show();
 }
 
-// Função para deletar rotina
+function editRoutineFromButton(element) {
+    const id = element.dataset.routineId;
+    const name = element.dataset.routineName;
+
+    editRoutine(id, name);
+}
+
 function deleteRoutine(id, name) {
     if (confirm(`Tem certeza que deseja excluir a rotina "${name}"?\n\nEsta ação não pode ser desfeita e todos os exercícios da rotina serão removidos.`)) {
         const form = document.createElement('form');
@@ -120,7 +125,13 @@ function deleteRoutine(id, name) {
     }
 }
 
-// Handler para o formulário de edição
+function deleteRoutineFromButton(element) {
+    const id = element.dataset.routineId;
+    const name = element.dataset.routineName;
+
+    deleteRoutine(id, name);
+}
+
 document.getElementById('editRoutineForm').onsubmit = function(e) {
     e.preventDefault();
     const formData = new FormData(this);

@@ -20,7 +20,6 @@
     </div>
   </div>
 
-  <!-- Seção Superior: Métricas, Formulário e Histórico -->
   <div class="row mb-4">
     <div class="col-lg-3 col-md-4 mb-4">
       {% if metrics.entries_count > 0 %}
@@ -121,7 +120,6 @@
             {% endfor %}
           </div>
 
-          <!-- Paginação -->
           {% if entries.has_other_pages %}
           <div class="card-footer">
             <nav aria-label="Navegação do histórico">
@@ -165,7 +163,6 @@
     </div>
   </div>
 
-  <!-- Seção do Gráfico (em baixo, maior) -->
   {% if metrics.entries_count > 1 %}
   <div class="row">
     <div class="col-12">
@@ -214,7 +211,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const chartData = JSON.parse(dataEl.textContent);
     if (!chartData.labels || !chartData.data) return;
 
-    // Preparar dados para Highcharts
     const weightData = chartData.data.map((value, index) => [
         Date.parse(chartData.dates[index]),
         value

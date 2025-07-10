@@ -33,9 +33,9 @@
             <div class="col-md-6 col-lg-4">
               <div class="card exercise-card h-100 {% if selected_exercise and selected_exercise.pk == exercise.pk %}border-primary bg-primary bg-opacity-10{% endif %}"
                    style="cursor: pointer;"
-                   onclick="selectExerciseCard({{ exercise.pk }}, '{{ exercise.name|escapejs }}')"
                    data-exercise-id="{{ exercise.pk }}"
                    data-exercise-name="{{ exercise.name|escapejs }}"
+                   onclick="selectExerciseCardFromCard(this)"
                    title="Clique para ver o progresso de {{ exercise.name }}">
                 <div class="card-body text-center py-3">
                   <h6 class="card-title mb-2">{{ exercise.name }}</h6>
@@ -117,7 +117,6 @@
       </div>
     </div>
 
-    <!-- Sets Recentes -->
     {% if recent_sets %}
     <div class="card mb-4">
       <div class="card-header">
@@ -207,17 +206,22 @@
 
 {% block extra_js %}
 <script>
-// Funcionalidade de seleção de exercícios por cards
+
 function selectExerciseCard(exerciseId, exerciseName) {
     const currentPeriod = document.getElementById('period-select') ?
                          document.getElementById('period-select').value : '90';
 
-    // Redirecionar para a página com o exercício selecionado
     const newUrl = `?exercise=${exerciseId}&period=${currentPeriod}`;
     window.location.href = newUrl;
 }
 
-// Função para mudar o período mantendo o exercício selecionado
+function selectExerciseCardFromCard(element) {
+    const exerciseId = element.dataset.exerciseId;
+    const exerciseName = element.dataset.exerciseName;
+
+    selectExerciseCard(exerciseId, exerciseName);
+}
+
 function changePeriod(newPeriod) {
     const urlParams = new URLSearchParams(window.location.search);
     const currentExercise = urlParams.get('exercise');
@@ -227,7 +231,6 @@ function changePeriod(newPeriod) {
     }
 }
 
-// Adicionar event listeners para os cards
 document.addEventListener('DOMContentLoaded', function() {
     const exerciseCards = document.querySelectorAll('.exercise-card');
 
@@ -250,9 +253,8 @@ document.addEventListener('DOMContentLoaded', function() {
 document.addEventListener('DOMContentLoaded', function() {
     const chartData = JSON.parse('{{ chart_data|safe }}');
 
-    // Preparar séries para Highcharts
     const series = chartData.datasets.map(function(dataset) {
-        // Converter dados para formato Highcharts
+
         const data = dataset.data.map(function(point) {
             return [
                 Date.parse(point.x),
@@ -274,7 +276,6 @@ document.addEventListener('DOMContentLoaded', function() {
             connectNulls: dataset.connectNulls !== false
         };
 
-        // Adicionar linha tracejada se especificado
         if (dataset.borderDash) {
             seriesConfig.dashStyle = 'Dash';
         }
@@ -312,7 +313,6 @@ document.addEventListener('DOMContentLoaded', function() {
             formatter: function() {
                 let tooltip = '<b>' + Highcharts.dateFormat('%d/%m/%Y', this.x) + '</b><br/>';
 
-                // Ordenar pontos por valor (maior para menor)
                 const sortedPoints = this.points.sort((a, b) => b.y - a.y);
 
                 sortedPoints.forEach(function(point) {

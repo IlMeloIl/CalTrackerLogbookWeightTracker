@@ -7,7 +7,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.views import View
 from datetime import date
 from django.http import JsonResponse
-from django.contrib import messages
+
 from django.db import transaction, models
 
 
@@ -81,7 +81,6 @@ class DailyLogView(LoginRequiredMixin, View):
             log_entry = form.save(commit=False)
             log_entry.user = request.user
 
-            # Definir a ordem como o próximo número disponível
             today = date.today()
             last_order = (
                 DailyLog.objects.filter(user=request.user, date=today).aggregate(

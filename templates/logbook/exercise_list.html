@@ -29,8 +29,8 @@
               </p>
               <div class="btn-group w-100" role="group">
                 {% if exercise.user %}
-                  <button type="button" class="btn btn-secondary" onclick="editExercise({{ exercise.pk }}, '{{ exercise.name }}', '{{ exercise.description|escapejs }}')">Editar</button>
-                  <button type="button" class="btn btn-danger" onclick="deleteExercise({{ exercise.pk }}, '{{ exercise.name }}')">Excluir</button>
+                  <button type="button" class="btn btn-secondary" data-exercise-id="{{ exercise.pk }}" data-exercise-name="{{ exercise.name }}" data-exercise-description="{{ exercise.description }}" onclick="editExerciseFromButton(this)">Editar</button>
+                  <button type="button" class="btn btn-danger" data-exercise-id="{{ exercise.pk }}" data-exercise-name="{{ exercise.name }}" onclick="deleteExerciseFromButton(this)">Excluir</button>
                 {% else %}
                   <span class="btn btn-outline-secondary disabled">Exercício global</span>
                 {% endif %}
@@ -49,7 +49,6 @@
     </div>
   {% endif %}
 
-<!-- Modal para Editar Exercício -->
 <div class="modal fade" id="editExerciseModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -82,7 +81,7 @@
 
 {% block extra_js %}
 <script>
-// Função para editar exercício
+
 function editExercise(id, name, description) {
     document.getElementById('edit_exercise_id').value = id;
     document.getElementById('edit_exercise_name').value = name;
@@ -90,7 +89,14 @@ function editExercise(id, name, description) {
     new bootstrap.Modal(document.getElementById('editExerciseModal')).show();
 }
 
-// Função para deletar exercício
+function editExerciseFromButton(element) {
+    const id = element.dataset.exerciseId;
+    const name = element.dataset.exerciseName;
+    const description = element.dataset.exerciseDescription;
+
+    editExercise(id, name, description);
+}
+
 function deleteExercise(id, name) {
     if (confirm(`Tem certeza que deseja excluir o exercício "${name}"?\n\nEsta ação não pode ser desfeita e o exercício será removido de todas as rotinas.`)) {
         const form = document.createElement('form');
@@ -112,7 +118,6 @@ function deleteExercise(id, name) {
         }).then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Recarregar a página sem mostrar mensagem de sucesso
                 location.reload();
             } else {
                 alert(data.error);
@@ -123,7 +128,13 @@ function deleteExercise(id, name) {
     }
 }
 
-// Handler para o formulário de edição
+function deleteExerciseFromButton(element) {
+    const id = element.dataset.exerciseId;
+    const name = element.dataset.exerciseName;
+
+    deleteExercise(id, name);
+}
+
 document.getElementById('editExerciseForm').onsubmit = function(e) {
     e.preventDefault();
     const formData = new FormData(this);
@@ -135,9 +146,7 @@ document.getElementById('editExerciseForm').onsubmit = function(e) {
     }).then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Fechar o modal
             bootstrap.Modal.getInstance(document.getElementById('editExerciseModal')).hide();
-            // Recarregar a página sem mostrar mensagem de sucesso
             location.reload();
         } else {
             if (data.errors) {
