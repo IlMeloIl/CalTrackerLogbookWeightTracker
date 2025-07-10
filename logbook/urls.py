@@ -17,6 +17,16 @@ urlpatterns = [
         name="routine_delete",
     ),
     path(
+        "rotinas/<int:pk>/delete-ajax/",
+        views.RoutineDeleteAjaxView.as_view(),
+        name="routine_delete_ajax",
+    ),
+    path(
+        "rotinas/<int:pk>/edit-ajax/",
+        views.RoutineUpdateAjaxView.as_view(),
+        name="routine_edit_ajax",
+    ),
+    path(
         "rotinas/<int:routine_id>/add-exercise/",
         views.AddExerciseToRoutineView.as_view(),
         name="add_exercise_to_routine",
@@ -65,6 +75,16 @@ urlpatterns = [
         "exercicios/<int:pk>/delete/",
         views.ExerciseDeleteView.as_view(),
         name="exercise_delete",
+    ),
+    path(
+        "exercicios/<int:pk>/delete-ajax/",
+        views.ExerciseDeleteAjaxView.as_view(),
+        name="exercise_delete_ajax",
+    ),
+    path(
+        "exercicios/<int:pk>/edit-ajax/",
+        views.ExerciseUpdateAjaxView.as_view(),
+        name="exercise_edit_ajax",
     ),
     path("progresso/", views.ExerciseProgressView.as_view(), name="exercise_progress"),
 ]

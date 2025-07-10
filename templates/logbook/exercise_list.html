@@ -29,8 +29,8 @@
               </p>
               <div class="btn-group w-100" role="group">
                 {% if exercise.user %}
-                  <a href="{% url 'logbook:exercise_edit' exercise.pk %}" class="btn btn-secondary">Editar</a>
-                  <a href="{% url 'logbook:exercise_delete' exercise.pk %}" class="btn btn-danger">Excluir</a>
+                  <button type="button" class="btn btn-secondary" onclick="editExercise({{ exercise.pk }}, '{{ exercise.name }}', '{{ exercise.description|escapejs }}')">Editar</button>
+                  <button type="button" class="btn btn-danger" onclick="deleteExercise({{ exercise.pk }}, '{{ exercise.name }}')">Excluir</button>
                 {% else %}
                   <span class="btn btn-outline-secondary disabled">Exercício global</span>
                 {% endif %}
@@ -48,4 +48,111 @@
       <a href="{% url 'logbook:exercise_add' %}" class="btn btn-primary">Criar Primeiro Exercício</a>
     </div>
   {% endif %}
+
+<!-- Modal para Editar Exercício -->
+<div class="modal fade" id="editExerciseModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Editar Exercício</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="editExerciseForm" method="post">
+        <div class="modal-body">
+          {% csrf_token %}
+          <input type="hidden" id="edit_exercise_id" name="exercise_id">
+          <div class="mb-3">
+            <label for="edit_exercise_name" class="form-label">Nome do Exercício</label>
+            <input type="text" class="form-control" id="edit_exercise_name" name="name" required>
+          </div>
+          <div class="mb-3">
+            <label for="edit_exercise_description" class="form-label">Descrição</label>
+            <textarea class="form-control" id="edit_exercise_description" name="description" rows="3"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Função para editar exercício
+function editExercise(id, name, description) {
+    document.getElementById('edit_exercise_id').value = id;
+    document.getElementById('edit_exercise_name').value = name;
+    document.getElementById('edit_exercise_description').value = description || '';
+    new bootstrap.Modal(document.getElementById('editExerciseModal')).show();
+}
+
+// Função para deletar exercício
+function deleteExercise(id, name) {
+    if (confirm(`Tem certeza que deseja excluir o exercício "${name}"?\n\nEsta ação não pode ser desfeita e o exercício será removido de todas as rotinas.`)) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/logbook/exercicios/${id}/delete-ajax/`;
+
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrfmiddlewaretoken';
+        csrfInput.value = csrfToken;
+        form.appendChild(csrfInput);
+
+        document.body.appendChild(form);
+
+        fetch(form.action, {
+            method: 'POST',
+            body: new FormData(form)
+        }).then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Recarregar a página sem mostrar mensagem de sucesso
+                location.reload();
+            } else {
+                alert(data.error);
+            }
+        }).catch(error => {
+            alert('Erro ao excluir exercício');
+        });
+    }
+}
+
+// Handler para o formulário de edição
+document.getElementById('editExerciseForm').onsubmit = function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const exerciseId = formData.get('exercise_id');
+
+    fetch(`/logbook/exercicios/${exerciseId}/edit-ajax/`, {
+        method: 'POST',
+        body: formData
+    }).then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Fechar o modal
+            bootstrap.Modal.getInstance(document.getElementById('editExerciseModal')).hide();
+            // Recarregar a página sem mostrar mensagem de sucesso
+            location.reload();
+        } else {
+            if (data.errors) {
+                let errorMsg = 'Erros encontrados:\n';
+                for (let field in data.errors) {
+                    errorMsg += `${field}: ${data.errors[field].join(', ')}\n`;
+                }
+                alert(errorMsg);
+            } else {
+                alert(data.error);
+            }
+        }
+    }).catch(error => {
+        alert('Erro ao salvar exercício');
+    });
+};
+</script>
 {% endblock %}

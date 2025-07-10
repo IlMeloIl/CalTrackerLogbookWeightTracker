@@ -20,32 +20,31 @@
     </div>
   </div>
 
-  <div class="row">
-    <div class="col-lg-4 col-md-5 mb-4">
+  <!-- Seção Superior: Métricas, Formulário e Histórico -->
+  <div class="row mb-4">
+    <div class="col-lg-3 col-md-4 mb-4">
       {% if metrics.entries_count > 0 %}
-      <div class="row g-2 mb-4">
-        <div class="col-12">
-          <div class="card bg-gradient text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-            <div class="card-body text-center py-4">
-              <h2 class="display-4 mb-1">{{ metrics.current_weight }}</h2>
-              <small class="text-light">kg • Peso Atual</small>
-            </div>
-          </div>
+      <div class="card bg-gradient text-white mb-3" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+        <div class="card-body text-center py-3">
+          <h3 class="mb-1">{{ metrics.current_weight }}</h3>
+          <small class="text-light">kg • Peso Atual</small>
         </div>
-        
+      </div>
+
+      <div class="row g-2 mb-3">
         <div class="col-6">
           <div class="card text-white bg-success">
-            <div class="card-body text-center py-3">
-              <h5 class="mb-1">{{ metrics.min_weight }}</h5>
-              <small>Menor</small>
+            <div class="card-body text-center py-2">
+              <h6 class="mb-1">{{ metrics.min_weight }}</h6>
+              <small>kg • Menor</small>
             </div>
           </div>
         </div>
         <div class="col-6">
           <div class="card text-dark bg-warning">
-            <div class="card-body text-center py-3">
-              <h5 class="mb-1">{{ metrics.max_weight }}</h5>
-              <small>Maior</small>
+            <div class="card-body text-center py-2">
+              <h6 class="mb-1">{{ metrics.max_weight }}</h6>
+              <small>kg • Maior</small>
             </div>
           </div>
         </div>
@@ -88,36 +87,11 @@
       </div>
     </div>
 
-    <div class="col-lg-8 col-md-7">
-      {% if metrics.entries_count > 1 %}
-      <div class="card shadow-sm mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <h5 class="mb-0">
-            <i class="bi bi-graph-up me-2"></i>Evolução do Peso
-          </h5>
-          <div class="btn-group btn-group-sm" role="group">
-            <button type="button" class="btn btn-outline-primary" onclick="updateChart(30)">30d</button>
-            <button type="button" class="btn btn-outline-primary" onclick="updateChart(90)">90d</button>
-            <button type="button" class="btn btn-outline-primary active" onclick="updateChart(365)">1a</button>
-          </div>
-        </div>
-        <div class="card-body">
-          <div style="position: relative; height: 300px;">
-            <canvas id="weightChart"></canvas>
-          </div>
-        </div>
-      </div>
-      {% elif metrics.entries_count == 1 %}
-      <div class="alert alert-info mb-4">
-        <h5><i class="bi bi-info-circle me-2"></i>Primeiro registro!</h5>
-        <p class="mb-0">Adicione mais registros para ver o gráfico de evolução do seu peso.</p>
-      </div>
-      {% endif %}
-
+    <div class="col-lg-9 col-md-8">
       <div class="card shadow-sm">
         <div class="card-header">
           <h5 class="mb-0">
-            <i class="bi bi-clock-history me-2"></i>Histórico Recente
+            <i class="bi bi-clock-history me-2"></i>Histórico de Registros
           </h5>
         </div>
         <div class="card-body p-0">
@@ -127,7 +101,7 @@
             <div class="list-group-item d-flex justify-content-between align-items-center">
               <div class="d-flex align-items-center">
                 <div class="me-3">
-                  {% if forloop.first %}
+                  {% if forloop.first and entries.number == 1 %}
                   <i class="bi bi-star-fill text-warning"></i>
                   {% else %}
                   <i class="bi bi-circle-fill text-muted"></i>
@@ -139,19 +113,44 @@
                 </div>
               </div>
               <div>
-                {% if forloop.first %}
+                {% if forloop.first and entries.number == 1 %}
                 <span class="badge bg-primary">Atual</span>
                 {% endif %}
               </div>
             </div>
             {% endfor %}
           </div>
-          
-          {% if metrics.entries_count > 10 %}
-          <div class="card-footer text-center">
-            <small class="text-muted">
-              Mostrando 10 de {{ metrics.entries_count }} registros
-            </small>
+
+          <!-- Paginação -->
+          {% if entries.has_other_pages %}
+          <div class="card-footer">
+            <nav aria-label="Navegação do histórico">
+              <ul class="pagination pagination-sm justify-content-center mb-0">
+                {% if entries.has_previous %}
+                  <li class="page-item">
+                    <a class="page-link" href="?page=1">&laquo; Primeira</a>
+                  </li>
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ entries.previous_page_number }}">Anterior</a>
+                  </li>
+                {% endif %}
+
+                <li class="page-item active">
+                  <span class="page-link">
+                    Página {{ entries.number }} de {{ entries.paginator.num_pages }}
+                  </span>
+                </li>
+
+                {% if entries.has_next %}
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ entries.next_page_number }}">Próxima</a>
+                  </li>
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ entries.paginator.num_pages }}">Última &raquo;</a>
+                  </li>
+                {% endif %}
+              </ul>
+            </nav>
           </div>
           {% endif %}
           {% else %}
@@ -165,6 +164,38 @@
       </div>
     </div>
   </div>
+
+  <!-- Seção do Gráfico (em baixo, maior) -->
+  {% if metrics.entries_count > 1 %}
+  <div class="row">
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">
+            <i class="bi bi-graph-up me-2"></i>Evolução do Peso
+          </h5>
+          <div class="btn-group btn-group-sm" role="group">
+            <button type="button" class="btn btn-outline-primary" onclick="updateChart(30)">30d</button>
+            <button type="button" class="btn btn-outline-primary" onclick="updateChart(90)">90d</button>
+            <button type="button" class="btn btn-outline-primary active" onclick="updateChart(365)">1a</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="weightChart" style="height: 500px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% elif metrics.entries_count == 1 %}
+  <div class="row">
+    <div class="col-12">
+      <div class="alert alert-info">
+        <h5><i class="bi bi-info-circle me-2"></i>Primeiro registro!</h5>
+        <p class="mb-0">Adicione mais registros para ver o gráfico de evolução do seu peso.</p>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 </div>
 
 {% if metrics.entries_count > 1 %}
@@ -174,59 +205,95 @@
 
 {% block extra_js %}
 {% if metrics.entries_count > 1 %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://code.highcharts.com/highcharts.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const dataEl = document.getElementById('chart-data');
     if (!dataEl) return;
-    
+
     const chartData = JSON.parse(dataEl.textContent);
     if (!chartData.labels || !chartData.data) return;
-    
-    const ctx = document.getElementById('weightChart').getContext('2d');
-    
-    window.weightChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: chartData.labels,
-            datasets: [{
-                label: 'Peso (kg)',
-                data: chartData.data,
-                borderColor: '#667eea',
-                backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                tension: 0.3,
-                fill: true,
-                pointRadius: 5,
-                pointHoverRadius: 8,
-                pointBackgroundColor: '#667eea',
-                pointBorderColor: '#fff',
-                pointBorderWidth: 2
-            }]
+
+    // Preparar dados para Highcharts
+    const weightData = chartData.data.map((value, index) => [
+        Date.parse(chartData.dates[index]),
+        value
+    ]);
+
+    const movingAverageData = chartData.moving_average.map((value, index) =>
+        value !== null ? [Date.parse(chartData.dates[index]), value] : null
+    ).filter(item => item !== null);
+
+    window.weightChart = Highcharts.chart('weightChart', {
+        chart: {
+            type: 'line',
+            backgroundColor: 'transparent'
         },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                    titleColor: '#fff',
-                    bodyColor: '#fff',
-                    borderColor: '#667eea',
-                    borderWidth: 1
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: false,
-                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
-                    ticks: { color: '#fff' }
-                },
-                x: {
-                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
-                    ticks: { color: '#fff' }
-                }
+        title: {
+            text: null
+        },
+        xAxis: {
+            type: 'datetime',
+            title: {
+                text: 'Data'
             }
+        },
+        yAxis: {
+            title: {
+                text: 'Peso (kg)'
+            }
+        },
+        tooltip: {
+            shared: true,
+            crosshairs: true,
+            formatter: function() {
+                let tooltip = '<b>' + Highcharts.dateFormat('%d/%m/%Y', this.x) + '</b><br/>';
+                this.points.forEach(function(point) {
+                    tooltip += '<span style="color:' + point.color + '">' + point.series.name + '</span>: <b>' + point.y.toFixed(1) + ' kg</b><br/>';
+                });
+                return tooltip;
+            }
+        },
+        legend: {
+            enabled: true,
+            align: 'center',
+            verticalAlign: 'bottom'
+        },
+        series: [{
+            name: 'Peso',
+            data: weightData,
+            color: '#667eea',
+            lineWidth: 3,
+            marker: {
+                radius: 5,
+                fillColor: '#667eea',
+                lineColor: '#fff',
+                lineWidth: 2
+            }
+        }, {
+            name: 'Média Móvel (7 dias)',
+            data: movingAverageData,
+            color: '#28a745',
+            lineWidth: 2,
+            dashStyle: 'Dash',
+            marker: {
+                radius: 3
+            }
+        }],
+        credits: {
+            enabled: false
+        },
+        responsive: {
+            rules: [{
+                condition: {
+                    maxWidth: 500
+                },
+                chartOptions: {
+                    legend: {
+                        enabled: false
+                    }
+                }
+            }]
         }
     });
 });
@@ -234,14 +301,22 @@ document.addEventListener('DOMContentLoaded', function() {
 function updateChart(days) {
     document.querySelectorAll('.btn-group button').forEach(btn => btn.classList.remove('active'));
     event.target.classList.add('active');
-    
+
     fetch('/weight/chart-data/?days=' + days)
         .then(r => r.json())
         .then(data => {
-            if (window.weightChart && data.labels) {
-                window.weightChart.data.labels = data.labels;
-                window.weightChart.data.datasets[0].data = data.data;
-                window.weightChart.update();
+            if (window.weightChart && data.data) {
+                const weightData = data.data.map((value, index) => [
+                    Date.parse(data.dates[index]),
+                    value
+                ]);
+
+                const movingAverageData = data.moving_average.map((value, index) =>
+                    value !== null ? [Date.parse(data.dates[index]), value] : null
+                ).filter(item => item !== null);
+
+                window.weightChart.series[0].setData(weightData);
+                window.weightChart.series[1].setData(movingAverageData);
             }
         });
 }

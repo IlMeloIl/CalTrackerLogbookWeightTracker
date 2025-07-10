@@ -34,8 +34,8 @@
           
           <div class="btn-group w-100" role="group">
             <a href="{% url 'logbook:routine_detail' routine.pk %}" class="btn btn-primary">Ver</a>
-            <a href="{% url 'logbook:routine_edit' routine.pk %}" class="btn btn-secondary">Editar</a>
-            <a href="{% url 'logbook:routine_delete' routine.pk %}" class="btn btn-danger">Excluir</a>
+            <button type="button" class="btn btn-secondary" onclick="editRoutine({{ routine.pk }}, '{{ routine.name }}')">Editar</button>
+            <button type="button" class="btn btn-danger" onclick="deleteRoutine({{ routine.pk }}, '{{ routine.name }}')">Excluir</button>
           </div>
         </div>
       </div>
@@ -50,4 +50,104 @@
       <a href="{% url 'logbook:routine_add' %}" class="btn btn-primary">Criar Primeira Rotina</a>
     </div>
   {% endif %}
+
+<!-- Modal para Editar Rotina -->
+<div class="modal fade" id="editRoutineModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Editar Rotina</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="editRoutineForm" method="post">
+        <div class="modal-body">
+          {% csrf_token %}
+          <input type="hidden" id="edit_routine_id" name="routine_id">
+          <div class="mb-3">
+            <label for="edit_routine_name" class="form-label">Nome da Rotina</label>
+            <input type="text" class="form-control" id="edit_routine_name" name="name" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Função para editar rotina
+function editRoutine(id, name) {
+    document.getElementById('edit_routine_id').value = id;
+    document.getElementById('edit_routine_name').value = name;
+    new bootstrap.Modal(document.getElementById('editRoutineModal')).show();
+}
+
+// Função para deletar rotina
+function deleteRoutine(id, name) {
+    if (confirm(`Tem certeza que deseja excluir a rotina "${name}"?\n\nEsta ação não pode ser desfeita e todos os exercícios da rotina serão removidos.`)) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/logbook/rotinas/${id}/delete-ajax/`;
+
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrfmiddlewaretoken';
+        csrfInput.value = csrfToken;
+        form.appendChild(csrfInput);
+
+        document.body.appendChild(form);
+
+        fetch(form.action, {
+            method: 'POST',
+            body: new FormData(form)
+        }).then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert(data.error);
+            }
+        }).catch(error => {
+            alert('Erro ao excluir rotina');
+        });
+    }
+}
+
+// Handler para o formulário de edição
+document.getElementById('editRoutineForm').onsubmit = function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const routineId = formData.get('routine_id');
+
+    fetch(`/logbook/rotinas/${routineId}/edit-ajax/`, {
+        method: 'POST',
+        body: formData
+    }).then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            if (data.errors) {
+                let errorMsg = 'Erros encontrados:\n';
+                for (let field in data.errors) {
+                    errorMsg += `${field}: ${data.errors[field].join(', ')}\n`;
+                }
+                alert(errorMsg);
+            } else {
+                alert(data.error);
+            }
+        }
+    }).catch(error => {
+        alert('Erro ao salvar rotina');
+    });
+};
+</script>
 {% endblock %}

@@ -70,7 +70,13 @@
             {% csrf_token %}
             <div class="mb-3">
               {{ form.exercise.label_tag }}
-              {{ form.exercise }}
+              <div class="position-relative">
+                <input type="text"
+                       class="form-control mb-2"
+                       id="exercise-search-routine"
+                       placeholder="Digite o nome do exercício ou selecione abaixo...">
+                {{ form.exercise }}
+              </div>
               {% if form.exercise.errors %}
                 <div class="invalid-feedback d-block">{{ form.exercise.errors.0 }}</div>
               {% endif %}
@@ -125,6 +131,57 @@ document.addEventListener('DOMContentLoaded', function() {
                         location.reload();
                     }
                 });
+            }
+        });
+    }
+
+    // Funcionalidade de busca de exercícios para rotinas
+    const searchInputRoutine = document.getElementById('exercise-search-routine');
+    const exerciseSelectRoutine = document.querySelector('select[name="exercise"]');
+
+    if (searchInputRoutine && exerciseSelectRoutine) {
+        // Filtrar opções baseado na busca
+        searchInputRoutine.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const options = exerciseSelectRoutine.options;
+
+            for (let i = 1; i < options.length; i++) {
+                const option = options[i];
+                const exerciseName = option.text.toLowerCase();
+
+                if (exerciseName.includes(searchTerm)) {
+                    option.style.display = '';
+                } else {
+                    option.style.display = 'none';
+                }
+            }
+        });
+
+        // Permitir seleção por Enter
+        searchInputRoutine.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const searchTerm = this.value.toLowerCase();
+                const options = exerciseSelectRoutine.options;
+
+                for (let i = 1; i < options.length; i++) {
+                    const option = options[i];
+                    if (option.text.toLowerCase().includes(searchTerm) && option.style.display !== 'none') {
+                        exerciseSelectRoutine.value = option.value;
+                        this.value = option.text;
+                        break;
+                    }
+                }
+            }
+        });
+
+        // Sincronizar quando selecionado no dropdown
+        exerciseSelectRoutine.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            if (selectedOption.value) {
+                searchInputRoutine.value = selectedOption.text;
+            } else {
+                searchInputRoutine.value = '';
             }
         });
     }

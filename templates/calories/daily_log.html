@@ -17,51 +17,472 @@
       </div>
     </div>
 
-    <h4>Adicionar ao Diário</h4>
-    <div class="card">
+    <!-- Seção de Gerenciamento de Alimentos -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <ul class="nav nav-tabs card-header-tabs" id="food-tabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="add-food-tab" data-bs-toggle="tab" data-bs-target="#add-food" type="button" role="tab">Adicionar</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="my-foods-tab" data-bs-toggle="tab" data-bs-target="#my-foods" type="button" role="tab">Meus Alimentos</button>
+          </li>
+        </ul>
+      </div>
       <div class="card-body">
-        <form method="post">
-          {% csrf_token %}
-          <div class="mb-3">
-            {{ form.food.label_tag }}
-            {{ form.food }}
-            {% if form.food.errors %}<div class="invalid-feedback d-block">{{ form.food.errors.0 }}</div>{% endif %}
+        <div class="tab-content" id="food-tab-content">
+          <!-- Aba Adicionar ao Diário -->
+          <div class="tab-pane fade show active" id="add-food" role="tabpanel">
+            <h6 class="mb-3">Selecione um Alimento</h6>
+            <div class="row g-2" id="food-cards">
+              {% for food in user_foods %}
+                <div class="col-12">
+                  <div class="card food-card h-100" style="cursor: pointer;" onclick="openAddFoodModal({{ food.id }}, '{{ food.name }}', {{ food.serving_size_grams }}, {{ food.calories }}, {{ food.protein }}, {{ food.carbs }}, {{ food.fat }})">
+                    <div class="card-body p-3">
+                      <h6 class="card-title mb-1">{{ food.name }}</h6>
+                      <div class="text-muted small">
+                        <div>{{ food.calories }} kcal | P: {{ food.protein|floatformat:"1" }}g, C: {{ food.carbs|floatformat:"1" }}g, F: {{ food.fat|floatformat:"1" }}g</div>
+                        <div class="mt-1">Porção: {{ food.serving_size_grams|floatformat:"0" }}g</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              {% empty %}
+                <div class="col-12">
+                  <p class="text-muted text-center">Nenhum alimento cadastrado. Adicione um na aba "Meus Alimentos".</p>
+                </div>
+              {% endfor %}
+            </div>
           </div>
-          <div class="mb-3">
-            {{ form.quantity_grams.label_tag }}
-            {{ form.quantity_grams }}
-            {% if form.quantity_grams.errors %}<div class="invalid-feedback d-block">{{ form.quantity_grams.errors.0 }}</div>{% endif %}
+
+          <!-- Aba Meus Alimentos -->
+          <div class="tab-pane fade" id="my-foods" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h6 class="mb-0">Gerenciar Alimentos</h6>
+              <button type="button" class="btn btn-sm btn-primary" onclick="openFoodModal()">
+                <i class="bi bi-plus"></i> Novo
+              </button>
+            </div>
+            <div class="list-group list-group-flush" style="max-height: 300px; overflow-y: auto;">
+              {% for food in user_foods %}
+                <div class="list-group-item d-flex justify-content-between align-items-center p-2">
+                  <div>
+                    <strong>{{ food.name }}</strong>
+                    <div class="text-muted small">{{ food.calories }} kcal ({{ food.serving_size_grams|floatformat:"0" }}g)</div>
+                  </div>
+                  <div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary me-1" onclick="editFood({{ food.id }}, '{{ food.name }}', {{ food.serving_size_grams }}, {{ food.calories }}, {{ food.protein }}, {{ food.carbs }}, {{ food.fat }})">
+                      <i class="bi bi-pencil"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteFood({{ food.id }}, '{{ food.name }}')">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </div>
+                </div>
+              {% empty %}
+                <div class="list-group-item text-center text-muted">
+                  Nenhum alimento cadastrado
+                </div>
+              {% endfor %}
+            </div>
           </div>
-          <button type="submit" class="btn btn-primary w-100">Adicionar</button>
-        </form>
+        </div>
       </div>
     </div>
   </div>
 
   <div class="col-md-8">
-    <h3>Alimentos Consumidos Hoje</h3>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h3 class="mb-0">Alimentos Consumidos Hoje</h3>
+      {% if daily_logs %}
+        <small class="text-muted">Arraste para reordenar</small>
+      {% endif %}
+    </div>
     {% if daily_logs %}
-      <ul class="list-group">
+      <ul id="food-list" class="list-group">
         {% for log in daily_logs %}
-          <li class="list-group-item d-flex justify-content-between align-items-center">
-            <div>
-              <strong>{{ log.food.name }}</strong> - {{ log.quantity_grams|floatformat:"0" }}g
-              <div class="text-muted small">
-                {{ log.calculated_calories }} kcal | 
-                P: {{ log.calculated_protein|floatformat:"1" }}g, 
-                C: {{ log.calculated_carbs|floatformat:"1" }}g, 
-                F: {{ log.calculated_fat|floatformat:"1" }}g
+          <li class="list-group-item d-flex justify-content-between align-items-center" data-food-id="{{ log.pk }}">
+            <div class="flex-grow-1">
+              <div class="d-flex justify-content-between align-items-start">
+                <div class="d-flex align-items-center">
+                  <i class="bi bi-grip-vertical text-muted me-3" style="cursor: move;"></i>
+                  <div>
+                    <strong>{{ log.food.name }}</strong> - {{ log.quantity_grams|floatformat:"0" }}g
+                  </div>
+                </div>
+                <div class="btn-group btn-group-sm" role="group">
+                  <button type="button" class="btn btn-outline-primary" onclick="editDailyLog({{ log.pk }}, '{{ log.food.name }}', {{ log.quantity_grams }})">
+                    <i class="bi bi-pencil"></i>
+                  </button>
+                  <button type="button" class="btn btn-outline-danger" onclick="deleteDailyLog({{ log.pk }}, '{{ log.food.name }}', {{ log.quantity_grams }})">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="text-muted small mt-1" style="line-height: 1.4;">
+                <span class="d-inline-block me-3">{{ log.calculated_calories }} kcal</span>
+                <span class="d-inline-block me-3">P: {{ log.calculated_protein|floatformat:"1" }}g</span>
+                <span class="d-inline-block me-3">C: {{ log.calculated_carbs|floatformat:"1" }}g</span>
+                <span class="d-inline-block">F: {{ log.calculated_fat|floatformat:"1" }}g</span>
               </div>
             </div>
-            <a href="{% url 'calories:daily_log_delete' log.pk %}" class="btn btn-outline-danger btn-sm">
-              &times;
-            </a>
           </li>
         {% endfor %}
       </ul>
     {% else %}
-      <p>Nenhum alimento registrado hoje. Adicione um ao lado!</p>
+      <div class="text-center py-5">
+        <i class="bi bi-journal-plus display-4 text-muted"></i>
+        <h5 class="mt-3">Nenhum alimento registrado hoje</h5>
+        <p class="text-muted">Adicione alimentos ao seu diário usando os cards ao lado!</p>
+      </div>
     {% endif %}
   </div>
 </div>
+
+<!-- Modal para Adicionar Alimento ao Diário -->
+<div class="modal fade" id="addFoodModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Adicionar ao Diário</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="addFoodForm" method="post">
+        <div class="modal-body">
+          {% csrf_token %}
+          <input type="hidden" id="selected_food_id" name="food">
+          <div class="mb-3">
+            <h6 id="selected_food_name"></h6>
+            <div class="text-muted small" id="selected_food_info"></div>
+          </div>
+          <div class="mb-3">
+            <label for="quantity_input" class="form-label">Quantidade (gramas)</label>
+            <input type="number" class="form-control" id="quantity_input" name="quantity_grams" step="0.01" min="0.01" required>
+          </div>
+          <div id="nutrition_preview" class="alert alert-info" style="display: none;">
+            <h6>Valores Nutricionais:</h6>
+            <div id="preview_content"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Adicionar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para Gerenciar Alimentos -->
+<div class="modal fade" id="foodModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="foodModalTitle">Adicionar Alimento</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="foodForm" method="post">
+        <div class="modal-body">
+          {% csrf_token %}
+          <input type="hidden" id="food_id" name="food_id">
+          <div class="mb-3">
+            <label for="food_name" class="form-label">Nome do Alimento</label>
+            <input type="text" class="form-control" id="food_name" name="name" required>
+          </div>
+          <div class="mb-3">
+            <label for="serving_size" class="form-label">Tamanho da Porção (gramas)</label>
+            <input type="number" class="form-control" id="serving_size" name="serving_size_grams" step="0.01" min="0.01" required>
+          </div>
+          <div class="mb-3">
+            <label for="calories" class="form-label">Calorias por Porção</label>
+            <input type="number" class="form-control" id="calories" name="calories" min="0" required>
+          </div>
+          <div class="row">
+            <div class="col-md-4">
+              <div class="mb-3">
+                <label for="protein" class="form-label">Proteínas (g)</label>
+                <input type="number" class="form-control" id="protein" name="protein" step="0.01" min="0" required>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="mb-3">
+                <label for="carbs" class="form-label">Carboidratos (g)</label>
+                <input type="number" class="form-control" id="carbs" name="carbs" step="0.01" min="0" required>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="mb-3">
+                <label for="fat" class="form-label">Gorduras (g)</label>
+                <input type="number" class="form-control" id="fat" name="fat" step="0.01" min="0" required>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para Editar Registro do Diário -->
+<div class="modal fade" id="editDailyLogModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Editar Quantidade</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="editDailyLogForm" method="post">
+        <div class="modal-body">
+          {% csrf_token %}
+          <input type="hidden" id="edit_log_id" name="log_id">
+          <div class="mb-3">
+            <h6 id="edit_food_name"></h6>
+          </div>
+          <div class="mb-3">
+            <label for="edit_quantity" class="form-label">Quantidade (gramas)</label>
+            <input type="number" class="form-control" id="edit_quantity" name="quantity_grams" step="0.01" min="0.01" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.sortable-ghost {
+    opacity: 0.4;
+}
+
+.sortable-chosen {
+    background-color: #f8f9fa;
+}
+
+.bi-grip-vertical:hover {
+    color: #007bff !important;
+}
+
+#food-list .list-group-item {
+    transition: background-color 0.2s ease;
+}
+
+#food-list .list-group-item:hover {
+    background-color: #f8f9fa;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script>
+// Função para abrir modal de adicionar alimento ao diário
+function openAddFoodModal(foodId, foodName, servingSize, calories, protein, carbs, fat) {
+    document.getElementById('selected_food_id').value = foodId;
+    document.getElementById('selected_food_name').textContent = foodName;
+    document.getElementById('selected_food_info').innerHTML =
+        `${calories} kcal | P: ${protein}g, C: ${carbs}g, F: ${fat}g (por ${servingSize}g)`;
+    document.getElementById('quantity_input').value = servingSize;
+
+    // Calcular preview inicial
+    updateNutritionPreview(servingSize, calories, protein, carbs, fat, servingSize);
+
+    // Adicionar listener para atualizar preview em tempo real
+    document.getElementById('quantity_input').oninput = function() {
+        const quantity = parseFloat(this.value) || 0;
+        updateNutritionPreview(quantity, calories, protein, carbs, fat, servingSize);
+    };
+
+    new bootstrap.Modal(document.getElementById('addFoodModal')).show();
+}
+
+// Função para atualizar preview nutricional
+function updateNutritionPreview(quantity, calories, protein, carbs, fat, servingSize) {
+    const factor = quantity / servingSize;
+    const calcCalories = Math.round(calories * factor);
+    const calcProtein = (protein * factor).toFixed(1);
+    const calcCarbs = (carbs * factor).toFixed(1);
+    const calcFat = (fat * factor).toFixed(1);
+
+    document.getElementById('preview_content').innerHTML =
+        `<strong>${calcCalories} kcal</strong> | P: ${calcProtein}g, C: ${calcCarbs}g, F: ${calcFat}g`;
+    document.getElementById('nutrition_preview').style.display = 'block';
+}
+
+// Função para abrir modal de gerenciar alimentos
+function openFoodModal() {
+    document.getElementById('foodModalTitle').textContent = 'Adicionar Alimento';
+    document.getElementById('foodForm').reset();
+    document.getElementById('food_id').value = '';
+    new bootstrap.Modal(document.getElementById('foodModal')).show();
+}
+
+// Função para editar alimento
+function editFood(id, name, servingSize, calories, protein, carbs, fat) {
+    document.getElementById('foodModalTitle').textContent = 'Editar Alimento';
+    document.getElementById('food_id').value = id;
+    document.getElementById('food_name').value = name;
+    document.getElementById('serving_size').value = servingSize;
+    document.getElementById('calories').value = calories;
+    document.getElementById('protein').value = protein;
+    document.getElementById('carbs').value = carbs;
+    document.getElementById('fat').value = fat;
+    new bootstrap.Modal(document.getElementById('foodModal')).show();
+}
+
+// Função para deletar alimento
+function deleteFood(id, name) {
+    if (confirm(`Tem certeza que deseja excluir o alimento "${name}"?`)) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/tracker/foods/${id}/delete/`;
+
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrfmiddlewaretoken';
+        csrfInput.value = csrfToken;
+        form.appendChild(csrfInput);
+
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+// Função para editar registro do diário
+function editDailyLog(logId, foodName, currentQuantity) {
+    document.getElementById('edit_log_id').value = logId;
+    document.getElementById('edit_food_name').textContent = foodName;
+    document.getElementById('edit_quantity').value = currentQuantity;
+    new bootstrap.Modal(document.getElementById('editDailyLogModal')).show();
+}
+
+// Função para deletar registro do diário
+function deleteDailyLog(logId, foodName, quantity) {
+    if (confirm(`Tem certeza que deseja remover ${quantity}g de "${foodName}" do seu diário?`)) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/tracker/log/${logId}/delete/`;
+
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrfmiddlewaretoken';
+        csrfInput.value = csrfToken;
+        form.appendChild(csrfInput);
+
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+// Configurar drag and drop para reordenar alimentos
+document.addEventListener('DOMContentLoaded', function() {
+    const foodList = document.getElementById('food-list');
+    if (foodList) {
+        new Sortable(foodList, {
+            handle: '.bi-grip-vertical',
+            animation: 150,
+            onEnd: function(evt) {
+                const foodIds = Array.from(foodList.children).map(li =>
+                    li.getAttribute('data-food-id')
+                );
+
+                fetch('{% url "calories:reorder_daily_logs" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: foodIds.map(id => `food_ids[]=${id}`).join('&')
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        console.error('Erro ao reordenar:', data.error);
+                        location.reload();
+                    }
+                });
+            }
+        });
+    }
+});
+
+// Handlers para os formulários
+document.getElementById('addFoodForm').onsubmit = function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+
+    fetch(window.location.href, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+        }
+    }).then(response => {
+        if (response.ok) {
+            location.reload();
+        } else {
+            alert('Erro ao adicionar alimento ao diário');
+        }
+    });
+};
+
+document.getElementById('foodForm').onsubmit = function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const foodId = formData.get('food_id');
+    const url = foodId ? `/tracker/foods/${foodId}/edit-ajax/` : '/tracker/foods/add-ajax/';
+
+    fetch(url, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+        }
+    }).then(response => {
+        if (response.ok) {
+            location.reload();
+        } else {
+            alert('Erro ao salvar alimento');
+        }
+    });
+};
+
+document.getElementById('editDailyLogForm').onsubmit = function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const logId = formData.get('log_id');
+
+    fetch(`/tracker/log/${logId}/edit/`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+        }
+    }).then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Fechar o modal
+            bootstrap.Modal.getInstance(document.getElementById('editDailyLogModal')).hide();
+            // Recarregar a página
+            location.reload();
+        } else {
+            alert('Erro ao editar quantidade: ' + (data.error || 'Erro desconhecido'));
+        }
+    }).catch(error => {
+        console.error('Erro:', error);
+        alert('Erro ao editar quantidade');
+    });
+};
+</script>
 {% endblock %}

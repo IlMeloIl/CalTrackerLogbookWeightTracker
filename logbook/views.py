@@ -9,7 +9,8 @@ from django.views.generic import (
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
 from django.shortcuts import get_object_or_404, redirect, render
-from django.db import models
+from django.db import models, IntegrityError
+from django.db.models import Q
 from .models import Routine, Exercise, RoutineExercise
 from .forms import RoutineForm, ExerciseForm, RoutineExerciseForm
 from django.contrib import messages
@@ -186,10 +187,6 @@ class ExerciseUpdateView(LoginRequiredMixin, UpdateView):
     def form_valid(self, form):
         try:
             response = super().form_valid(form)
-            messages.success(
-                self.request,
-                f'Exercício "{form.instance.name}" atualizado com sucesso!',
-            )
             return response
         except IntegrityError:
             messages.error(self.request, "Você já tem um exercício com este nome.")
@@ -223,8 +220,6 @@ class ExerciseDeleteView(LoginRequiredMixin, DeleteView):
             )
             return redirect("logbook:exercise_list")
 
-        exercise_name = self.object.name
-        messages.success(request, f'Exercício "{exercise_name}" excluído com sucesso!')
         return super().delete(request, *args, **kwargs)
 
 
@@ -562,7 +557,10 @@ class ExerciseProgressView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         user = self.request.user
 
-        user_exercises = Exercise.objects.filter(user=user).order_by("name")
+        # Incluir exercícios do usuário e exercícios globais
+        user_exercises = Exercise.objects.filter(
+            Q(user=user) | Q(user__isnull=True)
+        ).order_by("name")
 
         exercise_id = self.request.GET.get("exercise")
         period = self.request.GET.get("period", "90")
@@ -574,7 +572,15 @@ class ExerciseProgressView(LoginRequiredMixin, TemplateView):
 
         if exercise_id:
             try:
-                selected_exercise = Exercise.objects.get(id=exercise_id, user=user)
+                # Permitir exercícios do usuário ou exercícios globais (sem usuário)
+                selected_exercise = (
+                    Exercise.objects.filter(id=exercise_id)
+                    .filter(Q(user=user) | Q(user__isnull=True))
+                    .first()
+                )
+
+                if not selected_exercise:
+                    raise Exercise.DoesNotExist()
 
                 days_ago = int(period)
                 start_date = date.today() - timedelta(days=days_ago)
@@ -587,25 +593,64 @@ class ExerciseProgressView(LoginRequiredMixin, TemplateView):
                 ).order_by("workout_session__date", "set_number")
 
                 if set_logs.exists():
+                    # Calcular estatísticas detalhadas
+                    total_workouts = (
+                        set_logs.values("workout_session").distinct().count()
+                    )
+                    total_sets = set_logs.count()
+                    max_weight = (
+                        set_logs.aggregate(models.Max("weight"))["weight__max"] or 0
+                    )
+
+                    # Calcular número de sets únicos por treino
+                    sets_per_workout = {}
+                    for log in set_logs:
+                        workout_id = log.workout_session.id
+                        if workout_id not in sets_per_workout:
+                            sets_per_workout[workout_id] = set()
+                        sets_per_workout[workout_id].add(log.set_number)
+
+                    avg_sets_per_workout = (
+                        sum(len(sets) for sets in sets_per_workout.values())
+                        / len(sets_per_workout)
+                        if sets_per_workout
+                        else 0
+                    )
+                    max_sets_in_workout = (
+                        max(len(sets) for sets in sets_per_workout.values())
+                        if sets_per_workout
+                        else 0
+                    )
+
+                    # Peso médio
+                    avg_weight = (
+                        set_logs.aggregate(models.Avg("weight"))["weight__avg"] or 0
+                    )
 
                     stats = {
-                        "total_workouts": set_logs.values("workout_session")
-                        .distinct()
-                        .count(),
-                        "total_sets": set_logs.count(),
-                        "max_weight": set_logs.aggregate(models.Max("weight"))[
-                            "weight__max"
-                        ]
-                        or 0,
+                        "total_workouts": total_workouts,
+                        "total_sets": total_sets,
+                        "max_weight": max_weight,
+                        "avg_weight": round(avg_weight, 1),
+                        "avg_sets_per_workout": round(avg_sets_per_workout, 1),
+                        "max_sets_in_workout": max_sets_in_workout,
                     }
 
                     chart_data = self._prepare_chart_data(set_logs)
+
+                    # Pegar os 10 sets mais recentes para mostrar na tabela
+                    recent_sets = set_logs.order_by(
+                        "-workout_session__date", "-set_number"
+                    )[:10]
 
                 else:
                     stats = {
                         "total_workouts": 0,
                         "total_sets": 0,
                         "max_weight": 0,
+                        "avg_weight": 0,
+                        "avg_sets_per_workout": 0,
+                        "max_sets_in_workout": 0,
                     }
 
             except (Exercise.DoesNotExist, ValueError):
@@ -618,68 +663,219 @@ class ExerciseProgressView(LoginRequiredMixin, TemplateView):
                 "period": period,
                 "stats": stats,
                 "chart_data": chart_data,
+                "recent_sets": recent_sets,
             }
         )
 
         return context
 
     def _prepare_chart_data(self, set_logs):
-
+        """
+        Prepara dados do gráfico organizados por sets.
+        Cada set terá sua própria série no gráfico.
+        """
+        # Organizar dados por data de treino e número do set
         workout_data = {}
-        session_weights = []
 
         for log in set_logs:
             workout_date = log.workout_session.date
+            set_number = log.set_number
 
             if workout_date not in workout_data:
-                workout_data[workout_date] = {
-                    "max_weight": float(log.weight),
-                }
-            else:
-                workout_data[workout_date]["max_weight"] = max(
-                    workout_data[workout_date]["max_weight"], float(log.weight)
-                )
+                workout_data[workout_date] = {}
 
-            session_weights.append({"date": workout_date, "weight": float(log.weight)})
+            if set_number not in workout_data[workout_date]:
+                workout_data[workout_date][set_number] = []
+
+            workout_data[workout_date][set_number].append(
+                {
+                    "weight": float(log.weight),
+                    "reps": log.reps,
+                    "datetime": log.workout_session.date,
+                }
+            )
+
+        # Encontrar todos os números de sets únicos
+        all_set_numbers = set()
+        for date_data in workout_data.values():
+            all_set_numbers.update(date_data.keys())
+
+        all_set_numbers = sorted(all_set_numbers)
+
+        # Preparar dados para cada set
+        datasets = []
+        colors = [
+            "#dc3545",  # Vermelho
+            "#28a745",  # Verde
+            "#007bff",  # Azul
+            "#ffc107",  # Amarelo
+            "#6f42c1",  # Roxo
+            "#fd7e14",  # Laranja
+            "#20c997",  # Teal
+            "#e83e8c",  # Rosa
+        ]
 
         sorted_dates = sorted(workout_data.keys())
 
-        max_labels = [date.strftime("%d/%m") for date in sorted_dates]
-        max_weights = [workout_data[date]["max_weight"] for date in sorted_dates]
+        for i, set_num in enumerate(all_set_numbers):
+            color = colors[i % len(colors)]
 
-        session_labels = []
-        session_weight_values = []
+            # Dados para este set específico
+            set_data = []
 
-        for item in session_weights:
-            session_labels.append(item["date"].strftime("%d/%m"))
-            session_weight_values.append(item["weight"])
+            for workout_date in sorted_dates:
+                if set_num in workout_data[workout_date]:
+                    # Se há múltiplas entradas para o mesmo set na mesma data,
+                    # usar o peso máximo
+                    max_weight = max(
+                        entry["weight"] for entry in workout_data[workout_date][set_num]
+                    )
+                    set_data.append(
+                        {"x": workout_date.strftime("%Y-%m-%d"), "y": max_weight}
+                    )
+                else:
+                    # Se não há dados para este set nesta data, adicionar null
+                    set_data.append({"x": workout_date.strftime("%Y-%m-%d"), "y": None})
 
-        chart_data = {
-            "labels": max_labels,
-            "datasets": [
+            datasets.append(
                 {
-                    "label": "Peso Máximo",
-                    "data": max_weights,
-                    "borderColor": "#dc3545",
-                    "backgroundColor": "rgba(220, 53, 69, 0.1)",
+                    "label": f"Set {set_num}",
+                    "data": set_data,
+                    "borderColor": color,
+                    "backgroundColor": color + "20",  # Adicionar transparência
                     "tension": 0.3,
                     "fill": False,
-                    "pointRadius": 5,
-                    "pointHoverRadius": 8,
-                },
-                {
-                    "label": "Peso de Sessão",
-                    "data": session_weight_values,
-                    "borderColor": "#28a745",
-                    "backgroundColor": "rgba(40, 167, 69, 0.1)",
-                    "tension": 0.1,
-                    "fill": False,
-                    "pointRadius": 3,
-                    "pointHoverRadius": 5,
-                    "showLine": True,
-                },
-            ],
-            "session_labels": session_labels,
+                    "pointRadius": 4,
+                    "pointHoverRadius": 6,
+                    "connectNulls": False,  # Não conectar pontos quando há valores null
+                }
+            )
+
+        # Adicionar série com peso máximo geral por treino
+        max_weight_data = []
+        for workout_date in sorted_dates:
+            max_weight = 0
+            for set_data in workout_data[workout_date].values():
+                for entry in set_data:
+                    max_weight = max(max_weight, entry["weight"])
+
+            max_weight_data.append(
+                {"x": workout_date.strftime("%Y-%m-%d"), "y": max_weight}
+            )
+
+        datasets.append(
+            {
+                "label": "Peso Máximo do Treino",
+                "data": max_weight_data,
+                "borderColor": "#000000",
+                "backgroundColor": "rgba(0, 0, 0, 0.1)",
+                "tension": 0.3,
+                "fill": False,
+                "pointRadius": 6,
+                "pointHoverRadius": 8,
+                "borderWidth": 3,
+                "borderDash": [5, 5],  # Linha tracejada
+            }
+        )
+
+        chart_data = {
+            "datasets": datasets,
+            "dates": [date.strftime("%Y-%m-%d") for date in sorted_dates],
+            "labels": [date.strftime("%d/%m") for date in sorted_dates],
         }
 
         return json.dumps(chart_data)
+
+
+class RoutineDeleteAjaxView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        routine = get_object_or_404(Routine, pk=pk, user=request.user)
+
+        # Verificar se há treinos ativos
+        active_sessions = WorkoutSession.objects.filter(
+            routine=routine, status="active"
+        )
+
+        if active_sessions.exists():
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Não é possível excluir uma rotina com treinos ativos.",
+                }
+            )
+
+        routine_name = routine.name
+        routine.delete()
+        return JsonResponse(
+            {
+                "success": True,
+                "message": f'Rotina "{routine_name}" excluída com sucesso!',
+            }
+        )
+
+
+class RoutineUpdateAjaxView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        routine = get_object_or_404(Routine, pk=pk, user=request.user)
+        form = RoutineForm(request.POST, instance=routine, user=request.user)
+
+        if form.is_valid():
+            try:
+                form.save()
+                return JsonResponse(
+                    {
+                        "success": True,
+                        "message": f'Rotina "{form.instance.name}" atualizada com sucesso!',
+                    }
+                )
+            except IntegrityError:
+                return JsonResponse(
+                    {"success": False, "error": "Você já tem uma rotina com este nome."}
+                )
+        else:
+            return JsonResponse({"success": False, "errors": form.errors})
+
+
+class ExerciseDeleteAjaxView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        exercise = get_object_or_404(Exercise, pk=pk, user=request.user)
+
+        # Verificar se o exercício está sendo usado em rotinas
+        routine_uses = RoutineExercise.objects.filter(
+            exercise=exercise, routine__user=request.user
+        )
+
+        if routine_uses.exists():
+            routine_names = [ru.routine.name for ru in routine_uses[:3]]
+            if len(routine_uses) > 3:
+                routine_names.append("...")
+
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": f'Não é possível excluir este exercício. Ele está sendo usado nas rotinas: {", ".join(routine_names)}',
+                }
+            )
+
+        exercise.delete()
+        return JsonResponse({"success": True})
+
+
+class ExerciseUpdateAjaxView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        exercise = get_object_or_404(Exercise, pk=pk, user=request.user)
+        form = ExerciseForm(request.POST, instance=exercise, user=request.user)
+
+        if form.is_valid():
+            try:
+                form.save()
+                return JsonResponse({"success": True})
+            except IntegrityError:
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "error": "Você já tem um exercício com este nome.",
+                    }
+                )
+        else:
+            return JsonResponse({"success": False, "errors": form.errors})
