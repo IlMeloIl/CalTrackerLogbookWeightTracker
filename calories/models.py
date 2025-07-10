@@ -46,9 +46,11 @@ class DailyLog(models.Model):
 
     @property
     def nutritional_factor(self):
-        if self.food.serving_size_grams > 0:
-            return self.quantity_grams / self.food.serving_size_grams
-        return Decimal(0)
+        return (
+            self.quantity_grams / self.food.serving_size_grams
+            if self.food.serving_size_grams > 0
+            else Decimal(0)
+        )
 
     @property
     def calculated_calories(self):

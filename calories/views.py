@@ -1,14 +1,14 @@
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
-from .models import Food, DailyLog
-from .forms import FoodForm, DailyLogForm
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views import View
-from datetime import date
 from django.http import JsonResponse
-
 from django.db import transaction, models
+from datetime import date
+
+from .models import Food, DailyLog
+from .forms import FoodForm, DailyLogForm
 
 
 class FoodListView(LoginRequiredMixin, ListView):
@@ -53,26 +53,26 @@ class FoodDeleteView(LoginRequiredMixin, DeleteView):
 class DailyLogView(LoginRequiredMixin, View):
     template_name = "calories/daily_log.html"
 
-    def get(self, request, *args, **kwargs):
+    def _get_daily_context(self, form=None):
         today = date.today()
-        daily_logs = DailyLog.objects.filter(user=request.user, date=today)
-
-        total_calories = sum(log.calculated_calories for log in daily_logs)
-        total_protein = sum(log.calculated_protein for log in daily_logs)
-        total_carbs = sum(log.calculated_carbs for log in daily_logs)
-        total_fat = sum(log.calculated_fat for log in daily_logs)
-
-        user_foods = Food.objects.filter(user=request.user).order_by("name")
+        daily_logs = DailyLog.objects.filter(user=self.request.user, date=today)
+        user_foods = Food.objects.filter(user=self.request.user).order_by("name")
 
         context = {
             "date": today,
             "daily_logs": daily_logs,
-            "total_calories": total_calories,
-            "total_protein": total_protein,
-            "total_carbs": total_carbs,
-            "total_fat": total_fat,
+            "total_calories": sum(log.calculated_calories for log in daily_logs),
+            "total_protein": sum(log.calculated_protein for log in daily_logs),
+            "total_carbs": sum(log.calculated_carbs for log in daily_logs),
+            "total_fat": sum(log.calculated_fat for log in daily_logs),
             "user_foods": user_foods,
         }
+        if form:
+            context["form"] = form
+        return context
+
+    def get(self, request, *args, **kwargs):
+        context = self._get_daily_context()
         return render(request, self.template_name, context)
 
     def post(self, request, *args, **kwargs):
@@ -89,26 +89,10 @@ class DailyLogView(LoginRequiredMixin, View):
                 or 0
             )
             log_entry.order = last_order + 1
-
             log_entry.save()
             return redirect("calories:daily_log")
 
-        today = date.today()
-        daily_logs = DailyLog.objects.filter(user=request.user, date=today)
-        total_calories = sum(log.calculated_calories for log in daily_logs)
-        total_protein = sum(log.calculated_protein for log in daily_logs)
-        total_carbs = sum(log.calculated_carbs for log in daily_logs)
-        total_fat = sum(log.calculated_fat for log in daily_logs)
-
-        context = {
-            "date": today,
-            "daily_logs": daily_logs,
-            "total_calories": total_calories,
-            "total_protein": total_protein,
-            "total_carbs": total_carbs,
-            "total_fat": total_fat,
-            "form": form,
-        }
+        context = self._get_daily_context(form)
         return render(request, self.template_name, context)
 
 
@@ -126,15 +110,15 @@ class DailyLogEditView(LoginRequiredMixin, View):
         daily_log = get_object_or_404(DailyLog, pk=pk, user=request.user)
         quantity_grams = request.POST.get("quantity_grams")
 
-        if quantity_grams:
-            try:
-                daily_log.quantity_grams = float(quantity_grams)
-                daily_log.save()
-                return JsonResponse({"success": True})
-            except ValueError:
-                return JsonResponse({"success": False, "error": "Quantidade inválida"})
+        if not quantity_grams:
+            return JsonResponse({"success": False, "error": "Quantidade não fornecida"})
 
-        return JsonResponse({"success": False, "error": "Quantidade não fornecida"})
+        try:
+            daily_log.quantity_grams = float(quantity_grams)
+            daily_log.save()
+            return JsonResponse({"success": True})
+        except ValueError:
+            return JsonResponse({"success": False, "error": "Quantidade inválida"})
 
 
 class FoodCreateAjaxView(LoginRequiredMixin, View):
@@ -145,8 +129,7 @@ class FoodCreateAjaxView(LoginRequiredMixin, View):
             food.user = request.user
             food.save()
             return JsonResponse({"success": True})
-        else:
-            return JsonResponse({"success": False, "errors": form.errors})
+        return JsonResponse({"success": False, "errors": form.errors})
 
 
 class FoodUpdateAjaxView(LoginRequiredMixin, View):
@@ -156,8 +139,7 @@ class FoodUpdateAjaxView(LoginRequiredMixin, View):
         if form.is_valid():
             form.save()
             return JsonResponse({"success": True})
-        else:
-            return JsonResponse({"success": False, "errors": form.errors})
+        return JsonResponse({"success": False, "errors": form.errors})
 
 
 class ReorderDailyLogsView(LoginRequiredMixin, View):

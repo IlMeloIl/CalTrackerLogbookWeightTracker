@@ -83,7 +83,7 @@ class RoutineExercise(models.Model):
         unique_together = ["routine", "exercise"]
 
     def clean(self):
-        if self.sets and (self.sets < 1 or self.sets > 20):
+        if self.sets and not (1 <= self.sets <= 20):
             raise ValidationError("Número de séries deve estar entre 1 e 20.")
 
     def __str__(self):
@@ -187,7 +187,7 @@ class WorkoutExercise(models.Model):
         unique_together = ["workout_session", "exercise"]
 
     def clean(self):
-        if self.sets and (self.sets < 1 or self.sets > 20):
+        if self.sets and not (1 <= self.sets <= 20):
             raise ValidationError("Número de séries deve estar entre 1 e 20.")
 
     def __str__(self):
@@ -211,15 +211,13 @@ class SetLog(models.Model):
         unique_together = ["workout_session", "exercise", "set_number"]
 
     def clean(self):
-        if self.weight is not None and (self.weight < 0 or self.weight > 1000):
+        if self.weight is not None and not (0 <= self.weight <= 1000):
             raise ValidationError("Peso deve estar entre 0 e 1000 kg.")
 
-        if self.reps is not None and (self.reps < 1 or self.reps > 1000):
+        if self.reps is not None and not (1 <= self.reps <= 1000):
             raise ValidationError("Número de repetições deve estar entre 1 e 1000.")
 
-        if self.set_number is not None and (
-            self.set_number < 1 or self.set_number > 20
-        ):
+        if self.set_number is not None and not (1 <= self.set_number <= 20):
             raise ValidationError("Número da série deve estar entre 1 e 20.")
 
     def __str__(self):
