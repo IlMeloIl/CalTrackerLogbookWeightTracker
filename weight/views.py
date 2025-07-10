@@ -1,6 +1,6 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
 
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.views import View
 from django.contrib import messages
 from datetime import date
@@ -78,3 +78,38 @@ class ChartDataView(LoginRequiredMixin, View):
         days = int(request.GET.get("days", 365))
         chart_data = WeightEntry.get_chart_data(request.user, days_limit=days)
         return JsonResponse(chart_data)
+
+
+class WeightEntryEditView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        entrada_peso = get_object_or_404(WeightEntry, pk=pk, user=request.user)
+        peso_kg = request.POST.get("peso_kg")
+        data = request.POST.get("data")
+
+        if peso_kg and data:
+            try:
+                entrada_peso.weight_kg = float(peso_kg)
+                entrada_peso.date = data
+                entrada_peso.save()
+                return JsonResponse({"sucesso": True})
+            except ValueError:
+                return JsonResponse({"sucesso": False, "erro": "Dados inválidos"})
+            except Exception as e:
+                if "unique constraint" in str(e).lower():
+                    return JsonResponse(
+                        {
+                            "sucesso": False,
+                            "erro": "Já existe um registro para esta data",
+                        }
+                    )
+                else:
+                    return JsonResponse({"sucesso": False, "erro": "Erro ao salvar"})
+
+        return JsonResponse({"sucesso": False, "erro": "Dados não fornecidos"})
+
+
+class WeightEntryDeleteView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        entrada_peso = get_object_or_404(WeightEntry, pk=pk, user=request.user)
+        entrada_peso.delete()
+        return JsonResponse({"sucesso": True})

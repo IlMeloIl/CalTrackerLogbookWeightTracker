@@ -111,10 +111,26 @@
                   <small class="text-muted">{{ entry.date|date:"d/m/Y" }}</small>
                 </div>
               </div>
-              <div>
+              <div class="d-flex align-items-center gap-2">
                 {% if forloop.first and entries.number == 1 %}
                 <span class="badge bg-primary">Atual</span>
                 {% endif %}
+                <div class="btn-group btn-group-sm" role="group">
+                  <button type="button" class="btn btn-outline-primary btn-sm"
+                          data-registro-id="{{ entry.id }}"
+                          data-peso-kg="{{ entry.weight_kg }}"
+                          data-data="{{ entry.date|date:"Y-m-d" }}"
+                          onclick="editarRegistroPesoFromButton(this)"
+                          title="Editar registro">
+                    <i class="bi bi-pencil"></i>
+                  </button>
+                  <button type="button" class="btn btn-outline-danger btn-sm"
+                          data-registro-id="{{ entry.id }}"
+                          onclick="excluirRegistroPesoFromButton(this)"
+                          title="Excluir registro">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </div>
               </div>
             </div>
             {% endfor %}
@@ -193,6 +209,43 @@
     </div>
   </div>
   {% endif %}
+</div>
+
+<div class="modal fade" id="editarRegistroPesoModal" tabindex="-1" aria-labelledby="editarRegistroPesoModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editarRegistroPesoModalLabel">
+          <i class="bi bi-pencil me-2"></i>Editar Registro de Peso
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <form id="editarRegistroPesoForm">
+        <div class="modal-body">
+          {% csrf_token %}
+          <input type="hidden" id="editar_registro_id" name="registro_id">
+
+          <div class="mb-3">
+            <label for="editar_peso_kg" class="form-label">Peso (kg)</label>
+            <div class="input-group">
+              <input type="number" class="form-control" id="editar_peso_kg" name="peso_kg"
+                     step="0.01" min="1" max="1000" required>
+              <span class="input-group-text">kg</span>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="editar_data" class="form-label">Data</label>
+            <input type="date" class="form-control" id="editar_data" name="data" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 
 {% if metrics.entries_count > 1 %}
@@ -318,4 +371,84 @@ function updateChart(days) {
 }
 </script>
 {% endif %}
+
+<script>
+
+function editarRegistroPeso(id, peso, data) {
+    document.getElementById('editar_registro_id').value = id;
+    document.getElementById('editar_peso_kg').value = peso;
+    document.getElementById('editar_data').value = data;
+    new bootstrap.Modal(document.getElementById('editarRegistroPesoModal')).show();
+}
+
+function editarRegistroPesoFromButton(element) {
+    const id = element.dataset.registroId;
+    const peso = element.dataset.pesoKg;
+    const data = element.dataset.data;
+
+    editarRegistroPeso(id, peso, data);
+}
+
+function excluirRegistroPeso(id) {
+    if (confirm('Tem certeza que deseja excluir este registro de peso?')) {
+        fetch(`/weight/${id}/excluir/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/x-www-form-urlencoded',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.sucesso) {
+                location.reload();
+            } else {
+                alert('Erro ao excluir registro: ' + (data.erro || 'Erro desconhecido'));
+            }
+        })
+        .catch(error => {
+            console.error('Erro:', error);
+            alert('Erro ao excluir registro');
+        });
+    }
+}
+
+function excluirRegistroPesoFromButton(element) {
+    const id = element.dataset.registroId;
+
+    excluirRegistroPeso(id);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('editarRegistroPesoForm');
+    if (form) {
+        form.onsubmit = function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const registroId = formData.get('registro_id');
+
+            fetch(`/weight/${registroId}/editar/`, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.sucesso) {
+                    bootstrap.Modal.getInstance(document.getElementById('editarRegistroPesoModal')).hide();
+                    location.reload();
+                } else {
+                    alert('Erro ao editar registro: ' + (data.erro || 'Erro desconhecido'));
+                }
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+                alert('Erro ao editar registro');
+            });
+        };
+    }
+});
+</script>
 {% endblock %}
