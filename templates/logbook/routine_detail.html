@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-
+{% load static %}
 {% block title %}{{ routine.name }} - {{ block.super }}{% endblock %}
 
 {% block content %}
@@ -11,7 +11,7 @@
         <i class="bi bi-play-circle"></i> Iniciar Treino
       </a>
     {% endif %}
-      <a href="{% url 'logbook:routine_edit' routine.pk %}" class="btn btn-secondary">Editar Rotina</a>
+      <button type="button" class="btn btn-secondary" data-routine-id="{{ routine.pk }}" data-routine-name="{{ routine.name }}" onclick="editRoutineFromButton(this)">Editar Rotina</button>
       <a href="{% url 'logbook:routine_list' %}" class="btn btn-outline-primary">Voltar</a>
     </div>
   </div>
@@ -100,6 +100,31 @@
       </div>
     </div>
   </div>
+
+<div class="modal fade" id="editRoutineModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Editar Rotina</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="editRoutineForm" method="post">
+        <div class="modal-body">
+          {% csrf_token %}
+          <input type="hidden" id="edit_routine_id" name="routine_id">
+          <div class="mb-3">
+            <label for="edit_routine_name" class="form-label">Nome da Rotina</label>
+            <input type="text" class="form-control" id="edit_routine_name" name="name" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -183,4 +208,5 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+<script src="{% static 'js/routines.js' %}"></script>
 {% endblock %}

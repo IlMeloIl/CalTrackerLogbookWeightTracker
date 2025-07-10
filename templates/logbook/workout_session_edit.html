@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Editar Treino: {{ session.routine.name }} - {{ block.super }}{% endblock %}
+
+{% block content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1>
+        <i class="bi bi-pencil-square text-primary"></i>
+        Editar Treino: {{ session.routine.name }}
+      </h1>
+      <p class="text-muted mb-0">
+        Realizado em {{ session.date|date:"d/m/Y" }}
+        {% if session.start_time %}
+          • {{ session.start_time|date:"H:i" }}
+        {% endif %}
+      </p>
+    </div>
+    <div>
+      <a href="{% url 'logbook:dashboard' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar ao Dashboard
+      </a>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <div>
+            <h5 class="mb-0">Exercícios</h5>
+            <small class="text-muted">Os dados são salvos automaticamente quando preenchidos</small>
+          </div>
+          <div>
+            <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#addExerciseModal">
+              <i class="bi bi-plus-circle"></i> Adicionar Exercício
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="toggleEditMode">
+              <i class="bi bi-pencil"></i> Editar Treino
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="exercise-list">
+            {% for exercise_data in exercises_data %}
+              <div class="exercise-section mb-4" data-exercise-id="{{ exercise_data.exercise.id }}">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <div class="d-flex align-items-center">
+                    <i class="bi bi-grip-vertical text-muted me-2 drag-handle" style="display: none; cursor: move;"></i>
+                    <h6 class="mb-0">{{ exercise_data.exercise.name }}</h6>
+                  </div>
+                  <div class="d-flex align-items-center">
+                    <span class="badge bg-secondary me-2">{{ exercise_data.workout_exercise.sets }} série{{ exercise_data.workout_exercise.sets|pluralize }}</span>
+                    <div class="edit-controls" style="display: none;">
+                      <button type="button" class="btn btn-sm btn-outline-primary me-1 edit-sets-btn"
+                              data-exercise-id="{{ exercise_data.exercise.id }}"
+                              data-current-sets="{{ exercise_data.workout_exercise.sets }}"
+                              data-exercise-name="{{ exercise_data.exercise.name }}">
+                        <i class="bi bi-gear"></i>
+                      </button>
+                      <button type="button" class="btn btn-sm btn-outline-danger remove-exercise-btn"
+                              data-exercise-id="{{ exercise_data.exercise.id }}"
+                              data-exercise-name="{{ exercise_data.exercise.name }}">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row g-2">
+                  {% for form_data in exercise_data.forms %}
+                    <div class="col-md-6">
+                      <div class="card {% if form_data.existing_log %}bg-success bg-opacity-10{% endif %}">
+                        <div class="card-body py-2">
+                          <div class="d-flex justify-content-between align-items-center mb-2">
+                            <strong>Série {{ form_data.set_number }}</strong>
+                            <div class="d-flex align-items-center">
+                              {% if form_data.existing_log %}
+                                <span class="badge bg-success me-2">Registrada</span>
+                              {% endif %}
+                              <div class="saving-indicator" style="display: none;">
+                                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                  <span class="visually-hidden">Salvando...</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <form class="set-form" data-session-id="{{ session.pk }}" data-exercise-id="{{ exercise_data.exercise.pk }}" data-set-number="{{ form_data.set_number }}">
+                            {% csrf_token %}
+                            <div class="row g-2">
+                              <div class="col-6">
+                                <label class="form-label small">Peso (kg)</label>
+                                <input type="number" name="weight" class="form-control" step="0.5" min="0" max="1000" value="{{ form_data.form.weight.value|default:'' }}">
+                              </div>
+                              <div class="col-6">
+                                <label class="form-label small">Reps</label>
+                                <input type="number" name="reps" class="form-control" min="1" max="1000" value="{{ form_data.form.reps.value|default:'' }}">
+                              </div>
+                            </div>
+                            <div class="mt-2">
+                              <label class="form-label small">Notas</label>
+                              <input type="text" name="notes" class="form-control" placeholder="Observações (opcional)" value="{{ form_data.form.notes.value|default:'' }}">
+                            </div>
+                            <div class="mt-2 d-flex justify-content-between align-items-center">
+                              <div class="save-feedback text-success small" style="display: none;">
+                                <i class="bi bi-check-circle"></i> Salvo
+                              </div>
+                              <div class="save-error text-danger small" style="display: none;">
+                                <i class="bi bi-exclamation-circle"></i> Erro ao salvar
+                              </div>
+                            </div>
+                          </form>
+                        </div>
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Atualizar Treino</h5>
+        </div>
+        <div class="card-body">
+          <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+              {{ session_form.notes.label_tag }}
+              {{ session_form.notes }}
+            </div>
+            <button type="submit" class="btn btn-success w-100">
+              <i class="bi bi-check-circle"></i> Salvar Alterações
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="addExerciseModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Adicionar Exercício ao Treino</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="addExerciseForm">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label for="exerciseSelect" class="form-label">Exercício</label>
+              <select class="form-select" id="exerciseSelect" name="exercise_id" required>
+                <option value="">Selecione um exercício</option>
+                {% for exercise in available_exercises %}
+                  <option value="{{ exercise.id }}">{{ exercise.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label for="exerciseSets" class="form-label">Número de Séries</label>
+              <input type="number" class="form-control" id="exerciseSets" name="sets" value="3" min="1" max="20" required>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-primary" onclick="addExercise()">Adicionar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="editSetsModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Editar Séries</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="editSetsForm">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label for="newSets" class="form-label">Número de Séries</label>
+              <input type="number" class="form-control" id="newSets" name="sets" min="1" max="20" required>
+            </div>
+            <input type="hidden" id="editExerciseId" name="exercise_id">
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-primary" onclick="updateSets()">Salvar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="application/json" id="workout-data">{
+    "sessionId": {{ session.pk }},
+    "urls": {
+      "reorderExercises": "{% url 'logbook:reorder_workout_exercises' session.pk %}",
+      "addExercise": "{% url 'logbook:add_exercise_to_workout' session.pk %}",
+      "removeExercise": "{% url 'logbook:remove_exercise_from_workout' session.pk 0 %}",
+      "updateSets": "{% url 'logbook:update_workout_exercise_sets' session.pk 0 %}",
+      "logSet": "/logbook/treino/{{ session.pk }}/log/{exerciseId}/{setNumber}/"
+    }
+  }</script>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script src="{% static 'js/workout.js' %}"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    initWorkoutSession();
+    setupAutoSave();
+  });
+</script>
+{% endblock %}

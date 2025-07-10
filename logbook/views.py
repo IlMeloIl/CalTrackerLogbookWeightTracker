@@ -49,8 +49,10 @@ class BaseCreateUpdateMixin:
 
 class BaseWorkoutValidationMixin:
     def validate_active_session(self, session):
-        if session.status != "active":
-            return JsonResponse({"success": False, "error": "Treino não está ativo"})
+        if session.status not in ["active", "completed"]:
+            return JsonResponse(
+                {"success": False, "error": "Treino não pode ser editado"}
+            )
         return None
 
     def validate_sets_range(self, sets):
@@ -470,8 +472,10 @@ class LogSetView(LoginRequiredMixin, View):
         session = get_object_or_404(WorkoutSession, id=session_id, user=request.user)
         exercise = get_object_or_404(Exercise, id=exercise_id)
 
-        if session.status != "active":
-            return JsonResponse({"success": False, "error": "Sessão não está ativa"})
+        if session.status not in ["active", "completed"]:
+            return JsonResponse(
+                {"success": False, "error": "Sessão não pode ser editada"}
+            )
 
         try:
             workout_exercise = WorkoutExercise.objects.get(
@@ -906,8 +910,10 @@ class RemoveExerciseFromWorkoutView(LoginRequiredMixin, View):
     def post(self, request, session_id, exercise_id):
         session = get_object_or_404(WorkoutSession, id=session_id, user=request.user)
 
-        if session.status != "active":
-            return JsonResponse({"success": False, "error": "Treino não está ativo"})
+        if session.status not in ["active", "completed"]:
+            return JsonResponse(
+                {"success": False, "error": "Treino não pode ser editado"}
+            )
 
         try:
             with transaction.atomic():
@@ -1068,3 +1074,98 @@ class ExerciseUpdateAjaxView(LoginRequiredMixin, View):
                 )
         else:
             return JsonResponse({"success": False, "errors": form.errors})
+
+
+class WorkoutSessionDeleteView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        session = get_object_or_404(WorkoutSession, pk=pk, user=request.user)
+
+        if session.status == "active":
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Não é possível excluir um treino ativo.",
+                }
+            )
+
+        routine_name = session.routine.name
+        session_date = session.date.strftime("%d/%m/%Y")
+        session.delete()
+
+        return JsonResponse(
+            {
+                "success": True,
+                "message": f'Treino "{routine_name}" de {session_date} excluído com sucesso!',
+            }
+        )
+
+
+class WorkoutSessionEditView(LoginRequiredMixin, DetailView):
+    model = WorkoutSession
+    template_name = "logbook/workout_session_edit.html"
+    context_object_name = "session"
+
+    def get_queryset(self):
+        return WorkoutSession.objects.filter(user=self.request.user, status="completed")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        session = self.object
+
+        exercises_data = []
+        for workout_exercise in session.get_workout_exercises():
+            exercise = workout_exercise.exercise
+
+            existing_logs = SetLog.objects.filter(
+                workout_session=session, exercise=exercise
+            ).order_by("set_number")
+
+            forms = []
+            for set_num in range(1, workout_exercise.sets + 1):
+                existing_log = existing_logs.filter(set_number=set_num).first()
+
+                if existing_log:
+                    form = SetLogForm(instance=existing_log)
+                else:
+                    form = SetLogForm(initial={"set_number": set_num})
+
+                forms.append(
+                    {"form": form, "set_number": set_num, "existing_log": existing_log}
+                )
+
+            exercises_data.append(
+                {
+                    "exercise": exercise,
+                    "workout_exercise": workout_exercise,
+                    "forms": forms,
+                    "existing_logs": existing_logs,
+                }
+            )
+
+        current_exercise_ids = [
+            we.exercise.id for we in session.get_workout_exercises()
+        ]
+        available_exercises = (
+            Exercise.objects.filter(Q(user=self.request.user) | Q(user__isnull=True))
+            .exclude(id__in=current_exercise_ids)
+            .order_by("name")
+        )
+
+        context["exercises_data"] = exercises_data
+        context["session_form"] = WorkoutSessionForm(instance=session)
+        context["available_exercises"] = available_exercises
+        return context
+
+    def post(self, request, *args, **kwargs):
+        session = self.get_object()
+        session_form = WorkoutSessionForm(request.POST, instance=session)
+
+        if session_form.is_valid():
+            session_form.save()
+            messages.success(
+                request, f'Treino "{session.routine.name}" atualizado com sucesso!'
+            )
+            return redirect("logbook:dashboard")
+        else:
+            messages.error(request, "Erro ao atualizar treino.")
+            return self.get(request, *args, **kwargs)

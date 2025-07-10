@@ -3,6 +3,7 @@
 {% block title %}Dashboard - Logbook{% endblock %}
 
 {% block content %}
+{% csrf_token %}
 <div class="container-fluid">
     <div class="row mb-4">
         <div class="col-12">
@@ -143,10 +144,23 @@
                                                         {% endif %}
                                                     </p>
                                                 </div>
-                                                <div class="d-flex align-items-center">
+                                                <div class="d-flex align-items-center gap-2">
                                                     <span class="badge bg-success">
                                                         {{ session.get_status_display }}
                                                     </span>
+                                                    <div class="btn-group btn-group-sm" role="group">
+                                                        <a href="{% url 'logbook:workout_session_edit' session.pk %}"
+                                                           class="btn btn-outline-primary btn-sm"
+                                                           title="Editar treino">
+                                                            <i class="bi bi-pencil"></i>
+                                                        </a>
+                                                        <button type="button"
+                                                                class="btn btn-outline-danger btn-sm"
+                                                                onclick="deleteWorkoutSession({{ session.pk }}, '{{ session.routine.name }}', '{{ session.date|date:"d/m/Y" }}')"
+                                                                title="Excluir treino">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -169,4 +183,9 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{% load static %}
+<script src="{% static 'js/dashboard.js' %}"></script>
 {% endblock %}

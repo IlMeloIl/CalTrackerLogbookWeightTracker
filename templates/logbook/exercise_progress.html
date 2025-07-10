@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-
+{% load static %}
 {% block title %}Progresso dos Exercícios - {{ block.super }}{% endblock %}
 
 {% block content %}
@@ -143,7 +143,7 @@
                   <span class="badge bg-secondary">{{ set_log.set_number }}</span>
                 </td>
                 <td>
-                  <strong>{{ set_log.weight|floatformat:1 }}kg</strong>
+                  <strong>{{ set_log.weight|floatformat:2 }}kg</strong>
                 </td>
                 <td>{{ set_log.reps }} reps</td>
               </tr>
@@ -205,161 +205,10 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-
-function selectExerciseCard(exerciseId, exerciseName) {
-    const currentPeriod = document.getElementById('period-select') ?
-                         document.getElementById('period-select').value : '90';
-
-    const newUrl = `?exercise=${exerciseId}&period=${currentPeriod}`;
-    window.location.href = newUrl;
-}
-
-function selectExerciseCardFromCard(element) {
-    const exerciseId = element.dataset.exerciseId;
-    const exerciseName = element.dataset.exerciseName;
-
-    selectExerciseCard(exerciseId, exerciseName);
-}
-
-function changePeriod(newPeriod) {
-    const urlParams = new URLSearchParams(window.location.search);
-    const currentExercise = urlParams.get('exercise');
-
-    if (currentExercise) {
-        window.location.href = `?exercise=${currentExercise}&period=${newPeriod}`;
-    }
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    const exerciseCards = document.querySelectorAll('.exercise-card');
-
-    exerciseCards.forEach(function(card) {
-        const exerciseId = card.getAttribute('data-exercise-id');
-        const exerciseName = card.getAttribute('data-exercise-name');
-
-        card.addEventListener('click', function(event) {
-            event.preventDefault();
-            event.stopPropagation();
-            selectExerciseCard(exerciseId, exerciseName);
-        });
-    });
-});
-</script>
+<script src="{% static 'js/exercise-progress.js' %}"></script>
 
 {% if chart_data %}
 <script src="https://code.highcharts.com/highcharts.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const chartData = JSON.parse('{{ chart_data|safe }}');
-
-    const series = chartData.datasets.map(function(dataset) {
-
-        const data = dataset.data.map(function(point) {
-            return [
-                Date.parse(point.x),
-                point.y
-            ];
-        });
-
-        const seriesConfig = {
-            name: dataset.label,
-            data: data,
-            color: dataset.borderColor,
-            lineWidth: dataset.borderWidth || 2,
-            marker: {
-                radius: dataset.pointRadius || 4,
-                fillColor: dataset.borderColor,
-                lineColor: '#fff',
-                lineWidth: 1
-            },
-            connectNulls: dataset.connectNulls !== false
-        };
-
-        if (dataset.borderDash) {
-            seriesConfig.dashStyle = 'Dash';
-        }
-
-        return seriesConfig;
-    });
-
-    Highcharts.chart('progressChart', {
-        chart: {
-            type: 'line',
-            backgroundColor: 'transparent',
-            height: 500
-        },
-        title: {
-            text: null
-        },
-        xAxis: {
-            type: 'datetime',
-            title: {
-                text: 'Data do Treino'
-            },
-            labels: {
-                format: '{value:%d/%m}'
-            }
-        },
-        yAxis: {
-            title: {
-                text: 'Peso (kg)'
-            },
-            min: 0
-        },
-        tooltip: {
-            shared: true,
-            crosshairs: true,
-            formatter: function() {
-                let tooltip = '<b>' + Highcharts.dateFormat('%d/%m/%Y', this.x) + '</b><br/>';
-
-                const sortedPoints = this.points.sort((a, b) => b.y - a.y);
-
-                sortedPoints.forEach(function(point) {
-                    if (point.y !== null) {
-                        tooltip += '<span style="color:' + point.color + '">' + point.series.name + '</span>: <b>' + point.y.toFixed(1) + ' kg</b><br/>';
-                    }
-                });
-                return tooltip;
-            }
-        },
-        legend: {
-            enabled: true,
-            align: 'center',
-            verticalAlign: 'bottom',
-            layout: 'horizontal',
-            itemStyle: {
-                fontSize: '12px'
-            }
-        },
-        plotOptions: {
-            line: {
-                marker: {
-                    enabled: true
-                },
-                connectNulls: false
-            }
-        },
-        series: series,
-        credits: {
-            enabled: false
-        },
-        responsive: {
-            rules: [{
-                condition: {
-                    maxWidth: 768
-                },
-                chartOptions: {
-                    legend: {
-                        layout: 'vertical',
-                        align: 'center',
-                        verticalAlign: 'bottom'
-                    }
-                }
-            }]
-        }
-    });
-});
-</script>
+<script type="application/json" id="chart-data">{{ chart_data|safe }}</script>
 {% endif %}
 {% endblock %}

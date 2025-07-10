@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-
+{% load static %}
 {% block title %}Controle de Peso - {{ block.super }}{% endblock %}
 
 {% block content %}
@@ -188,9 +188,9 @@
             <i class="bi bi-graph-up me-2"></i>Evolução do Peso
           </h5>
           <div class="btn-group btn-group-sm" role="group">
-            <button type="button" class="btn btn-outline-primary" onclick="updateChart(30)">30d</button>
-            <button type="button" class="btn btn-outline-primary" onclick="updateChart(90)">90d</button>
-            <button type="button" class="btn btn-outline-primary active" onclick="updateChart(365)">1a</button>
+            <button type="button" class="btn btn-outline-primary" data-period="30">30d</button>
+            <button type="button" class="btn btn-outline-primary" data-period="90">90d</button>
+            <button type="button" class="btn btn-outline-primary active" data-period="365">1a</button>
           </div>
         </div>
         <div class="card-body">
@@ -256,199 +256,6 @@
 {% block extra_js %}
 {% if metrics.entries_count > 1 %}
 <script src="https://code.highcharts.com/highcharts.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const dataEl = document.getElementById('chart-data');
-    if (!dataEl) return;
-
-    const chartData = JSON.parse(dataEl.textContent);
-    if (!chartData.labels || !chartData.data) return;
-
-    const weightData = chartData.data.map((value, index) => [
-        Date.parse(chartData.dates[index]),
-        value
-    ]);
-
-    const movingAverageData = chartData.moving_average.map((value, index) =>
-        value !== null ? [Date.parse(chartData.dates[index]), value] : null
-    ).filter(item => item !== null);
-
-    window.weightChart = Highcharts.chart('weightChart', {
-        chart: {
-            type: 'line',
-            backgroundColor: 'transparent'
-        },
-        title: {
-            text: null
-        },
-        xAxis: {
-            type: 'datetime',
-            title: {
-                text: 'Data'
-            }
-        },
-        yAxis: {
-            title: {
-                text: 'Peso (kg)'
-            }
-        },
-        tooltip: {
-            shared: true,
-            crosshairs: true,
-            formatter: function() {
-                let tooltip = '<b>' + Highcharts.dateFormat('%d/%m/%Y', this.x) + '</b><br/>';
-                this.points.forEach(function(point) {
-                    tooltip += '<span style="color:' + point.color + '">' + point.series.name + '</span>: <b>' + point.y.toFixed(1) + ' kg</b><br/>';
-                });
-                return tooltip;
-            }
-        },
-        legend: {
-            enabled: true,
-            align: 'center',
-            verticalAlign: 'bottom'
-        },
-        series: [{
-            name: 'Peso',
-            data: weightData,
-            color: '#667eea',
-            lineWidth: 3,
-            marker: {
-                radius: 5,
-                fillColor: '#667eea',
-                lineColor: '#fff',
-                lineWidth: 2
-            }
-        }, {
-            name: 'Média Móvel (7 dias)',
-            data: movingAverageData,
-            color: '#28a745',
-            lineWidth: 2,
-            dashStyle: 'Dash',
-            marker: {
-                radius: 3
-            }
-        }],
-        credits: {
-            enabled: false
-        },
-        responsive: {
-            rules: [{
-                condition: {
-                    maxWidth: 500
-                },
-                chartOptions: {
-                    legend: {
-                        enabled: false
-                    }
-                }
-            }]
-        }
-    });
-});
-
-function updateChart(days) {
-    document.querySelectorAll('.btn-group button').forEach(btn => btn.classList.remove('active'));
-    event.target.classList.add('active');
-
-    fetch('/weight/chart-data/?days=' + days)
-        .then(r => r.json())
-        .then(data => {
-            if (window.weightChart && data.data) {
-                const weightData = data.data.map((value, index) => [
-                    Date.parse(data.dates[index]),
-                    value
-                ]);
-
-                const movingAverageData = data.moving_average.map((value, index) =>
-                    value !== null ? [Date.parse(data.dates[index]), value] : null
-                ).filter(item => item !== null);
-
-                window.weightChart.series[0].setData(weightData);
-                window.weightChart.series[1].setData(movingAverageData);
-            }
-        });
-}
-</script>
 {% endif %}
-
-<script>
-
-function editarRegistroPeso(id, peso, data) {
-    document.getElementById('editar_registro_id').value = id;
-    document.getElementById('editar_peso_kg').value = peso;
-    document.getElementById('editar_data').value = data;
-    new bootstrap.Modal(document.getElementById('editarRegistroPesoModal')).show();
-}
-
-function editarRegistroPesoFromButton(element) {
-    const id = element.dataset.registroId;
-    const peso = element.dataset.pesoKg;
-    const data = element.dataset.data;
-
-    editarRegistroPeso(id, peso, data);
-}
-
-function excluirRegistroPeso(id) {
-    if (confirm('Tem certeza que deseja excluir este registro de peso?')) {
-        fetch(`/weight/${id}/excluir/`, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-                'Content-Type': 'application/x-www-form-urlencoded',
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.sucesso) {
-                location.reload();
-            } else {
-                alert('Erro ao excluir registro: ' + (data.erro || 'Erro desconhecido'));
-            }
-        })
-        .catch(error => {
-            console.error('Erro:', error);
-            alert('Erro ao excluir registro');
-        });
-    }
-}
-
-function excluirRegistroPesoFromButton(element) {
-    const id = element.dataset.registroId;
-
-    excluirRegistroPeso(id);
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('editarRegistroPesoForm');
-    if (form) {
-        form.onsubmit = function(e) {
-            e.preventDefault();
-            const formData = new FormData(this);
-            const registroId = formData.get('registro_id');
-
-            fetch(`/weight/${registroId}/editar/`, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.sucesso) {
-                    bootstrap.Modal.getInstance(document.getElementById('editarRegistroPesoModal')).hide();
-                    location.reload();
-                } else {
-                    alert('Erro ao editar registro: ' + (data.erro || 'Erro desconhecido'));
-                }
-            })
-            .catch(error => {
-                console.error('Erro:', error);
-                alert('Erro ao editar registro');
-            });
-        };
-    }
-});
-</script>
+<script src="{% static 'js/weight.js' %}"></script>
 {% endblock %}
