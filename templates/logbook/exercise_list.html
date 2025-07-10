@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-
+{% load static %}
 {% block title %}Exercícios - {{ block.super }}{% endblock %}
 
 {% block content %}
@@ -80,88 +80,8 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
+<script src="{% static 'js/exercises.js' %}"></script>
 
-function editExercise(id, name, description) {
-    document.getElementById('edit_exercise_id').value = id;
-    document.getElementById('edit_exercise_name').value = name;
-    document.getElementById('edit_exercise_description').value = description || '';
-    new bootstrap.Modal(document.getElementById('editExerciseModal')).show();
-}
 
-function editExerciseFromButton(element) {
-    const id = element.dataset.exerciseId;
-    const name = element.dataset.exerciseName;
-    const description = element.dataset.exerciseDescription;
 
-    editExercise(id, name, description);
-}
-
-function deleteExercise(id, name) {
-    if (confirm(`Tem certeza que deseja excluir o exercício "${name}"?\n\nEsta ação não pode ser desfeita e o exercício será removido de todas as rotinas.`)) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/logbook/exercicios/${id}/delete-ajax/`;
-
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        const csrfInput = document.createElement('input');
-        csrfInput.type = 'hidden';
-        csrfInput.name = 'csrfmiddlewaretoken';
-        csrfInput.value = csrfToken;
-        form.appendChild(csrfInput);
-
-        document.body.appendChild(form);
-
-        fetch(form.action, {
-            method: 'POST',
-            body: new FormData(form)
-        }).then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                alert(data.error);
-            }
-        }).catch(error => {
-            alert('Erro ao excluir exercício');
-        });
-    }
-}
-
-function deleteExerciseFromButton(element) {
-    const id = element.dataset.exerciseId;
-    const name = element.dataset.exerciseName;
-
-    deleteExercise(id, name);
-}
-
-document.getElementById('editExerciseForm').onsubmit = function(e) {
-    e.preventDefault();
-    const formData = new FormData(this);
-    const exerciseId = formData.get('exercise_id');
-
-    fetch(`/logbook/exercicios/${exerciseId}/edit-ajax/`, {
-        method: 'POST',
-        body: formData
-    }).then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            bootstrap.Modal.getInstance(document.getElementById('editExerciseModal')).hide();
-            location.reload();
-        } else {
-            if (data.errors) {
-                let errorMsg = 'Erros encontrados:\n';
-                for (let field in data.errors) {
-                    errorMsg += `${field}: ${data.errors[field].join(', ')}\n`;
-                }
-                alert(errorMsg);
-            } else {
-                alert(data.error);
-            }
-        }
-    }).catch(error => {
-        alert('Erro ao salvar exercício');
-    });
-};
-</script>
 {% endblock %}

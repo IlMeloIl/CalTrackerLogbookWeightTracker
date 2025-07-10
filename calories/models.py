@@ -46,22 +46,28 @@ class DailyLog(models.Model):
 
     @property
     def nutritional_factor(self):
-        if self.food.serving_size_grams > 0:
-            return self.quantity_grams / self.food.serving_size_grams
-        return Decimal(0)
+        return (
+            self.quantity_grams / self.food.serving_size_grams
+            if self.food.serving_size_grams > 0
+            else Decimal(0)
+        )
+
+    def _calcular_nutriente(self, valor_nutriente, usar_decimal=True):
+        resultado = valor_nutriente * self.nutritional_factor
+        return resultado.quantize(Decimal("0.01")) if usar_decimal else round(resultado)
 
     @property
     def calculated_calories(self):
-        return round(self.food.calories * self.nutritional_factor)
+        return self._calcular_nutriente(self.food.calories, usar_decimal=False)
 
     @property
     def calculated_protein(self):
-        return (self.food.protein * self.nutritional_factor).quantize(Decimal("0.01"))
+        return self._calcular_nutriente(self.food.protein)
 
     @property
     def calculated_carbs(self):
-        return (self.food.carbs * self.nutritional_factor).quantize(Decimal("0.01"))
+        return self._calcular_nutriente(self.food.carbs)
 
     @property
     def calculated_fat(self):
-        return (self.food.fat * self.nutritional_factor).quantize(Decimal("0.01"))
+        return self._calcular_nutriente(self.food.fat)

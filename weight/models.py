@@ -62,44 +62,49 @@ class WeightEntry(models.Model):
                 "weekly_rate": None,
             }
 
-        labels = [entry.date.strftime("%d/%m") for entry in entries]
-        data = [float(entry.weight_kg) for entry in entries]
-        dates = [entry.date.strftime("%Y-%m-%d") for entry in entries]
+        entries_list = list(entries)
+        labels = [entry.date.strftime("%d/%m") for entry in entries_list]
+        data = [float(entry.weight_kg) for entry in entries_list]
+        dates = [entry.date.strftime("%Y-%m-%d") for entry in entries_list]
 
-        moving_average = []
-        for i, entry in enumerate(entries):
-            if i < 6:
-                moving_average.append(None)
-            else:
-                recent_weights = [
-                    float(entries[j].weight_kg) for j in range(i - 6, i + 1)
-                ]
-                avg = sum(recent_weights) / len(recent_weights)
-                moving_average.append(round(avg, 2))
+        moving_average = cls._calculate_moving_average(entries_list)
+        weekly_rate = cls._calculate_weekly_rate(entries_list)
 
-        weekly_rate = None
-        if len(entries) >= 14:
-            entries_list = list(entries)
-
-            first_week = entries_list[:7]
-            last_week = entries_list[-7:]
-
-            first_week_avg = sum(float(e.weight_kg) for e in first_week) / len(
-                first_week
-            )
-            last_week_avg = sum(float(e.weight_kg) for e in last_week) / len(last_week)
-
-            weeks_diff = (entries_list[-1].date - entries_list[0].date).days / 7
-            if weeks_diff > 0:
-                weekly_rate = round((last_week_avg - first_week_avg) / weeks_diff, 2)
-
-        chart_data = {
+        return {
             "labels": labels,
             "data": data,
             "dates": dates,
             "moving_average": moving_average,
             "weekly_rate": weekly_rate,
-            "count": entries.count(),
+            "count": len(entries_list),
         }
 
-        return chart_data
+    @classmethod
+    def _calculate_moving_average(cls, entries_list):
+        moving_average = []
+        for i, entry in enumerate(entries_list):
+            if i < 6:
+                moving_average.append(None)
+            else:
+                recent_weights = [
+                    float(entries_list[j].weight_kg) for j in range(i - 6, i + 1)
+                ]
+                avg = sum(recent_weights) / len(recent_weights)
+                moving_average.append(round(avg, 2))
+        return moving_average
+
+    @classmethod
+    def _calculate_weekly_rate(cls, entries_list):
+        if len(entries_list) < 14:
+            return None
+
+        first_week = entries_list[:7]
+        last_week = entries_list[-7:]
+
+        first_week_avg = sum(float(e.weight_kg) for e in first_week) / len(first_week)
+        last_week_avg = sum(float(e.weight_kg) for e in last_week) / len(last_week)
+
+        weeks_diff = (entries_list[-1].date - entries_list[0].date).days / 7
+        if weeks_diff > 0:
+            return round((last_week_avg - first_week_avg) / weeks_diff, 2)
+        return None

@@ -1,25 +1,9 @@
-{% extends "base.html" %}
+{% extends "confirm_delete_base.html" %}
 
-{% block title %}Confirmar Exclusão - {{ block.super }}{% endblock %}
-
-{% block content %}
-  <div class="row justify-content-center">
-    <div class="col-md-8">
-      <div class="card">
-        <div class="card-body">
-          <h2 class="card-title">Confirmar Exclusão</h2>
-          <p>
-            Você tem certeza que deseja remover o registro de 
-            <strong>{{ object.quantity_grams|floatformat:"0" }}g de {{ object.food.name }}</strong> 
-            do seu diário?
-          </p>
-          <form method="post">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-danger">Sim, excluir</button>
-            <a href="{% url 'calories:daily_log' %}" class="btn btn-secondary">Cancelar</a>
-          </form>
-        </div>
-      </div>
-    </div>
-  </div>
+{% block delete_message %}
+  Você tem certeza que deseja remover o registro de
+  <strong>{{ object.quantity_grams|floatformat:"0" }}g de {{ object.food.name }}</strong>
+  do seu diário?
 {% endblock %}
+
+{% block cancel_url %}{% url 'calories:daily_log' %}{% endblock %}

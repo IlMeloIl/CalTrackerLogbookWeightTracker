@@ -11,7 +11,6 @@ urlpatterns = [
         name="daily_log_delete",
     ),
     path("log/<int:pk>/edit/", views.DailyLogEditView.as_view(), name="daily_log_edit"),
-    path("foods/", views.FoodListView.as_view(), name="food_list"),
     path("foods/add/", views.FoodCreateView.as_view(), name="food_add"),
     path("foods/add-ajax/", views.FoodCreateAjaxView.as_view(), name="food_add_ajax"),
     path("foods/<int:pk>/edit/", views.FoodUpdateView.as_view(), name="food_edit"),
