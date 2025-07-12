@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% load form_tags %}
+
+{% block title %}{% block form_title %}{% endblock %} - {{ block.super }}{% endblock %}
+
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-md-8">
+      <div class="card">
+        <div class="card-body">
+          <h2 class="card-title">{% block form_header %}{% endblock %}</h2>
+          
+          {% block form_content %}
+          <form method="post" {% block form_attributes %}{% endblock %}>
+            {% csrf_token %}
+            
+            {% block form_fields %}
+            {% for field in form %}
+              <div class="mb-3">
+                <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                {{ field|add_class:"form-control" }}
+                {% if field.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in field.errors %}
+                      {{ error }}
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            {% endfor %}
+            {% endblock %}
+            
+            {% block form_buttons %}
+            <button type="submit" class="btn btn-primary">{% block submit_text %}Salvar{% endblock %}</button>
+            <a href="{% block cancel_url %}{% endblock %}" class="btn btn-secondary">Cancelar</a>
+            {% endblock %}
+          </form>
+          {% endblock %}
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% load static %}
+
+<div class="btn-group btn-group-sm" role="group">
+  {% if show_edit|default:True %}
+  <button type="button" 
+          class="btn btn-outline-primary" 
+          {% for attr, value in edit_data_attrs.items %}data-{{ attr }}="{{ value }}"{% endfor %}
+          onclick="{{ edit_function|default:'editFromButton' }}(this)"
+          title="Editar">
+    <i class="bi bi-pencil"></i>
+  </button>
+  {% endif %}
+  
+  {% if show_delete|default:True %}
+  <button type="button" 
+          class="btn btn-outline-danger" 
+          {% for attr, value in delete_data_attrs.items %}data-{{ attr }}="{{ value }}"{% endfor %}
+          onclick="{{ delete_function|default:'deleteFromButton' }}(this)"
+          title="Excluir">
+    <i class="bi bi-trash"></i>
+  </button>
+  {% endif %}
+  
+  {% if show_view %}
+  <button type="button" 
+          class="btn btn-outline-info" 
+          {% for attr, value in view_data_attrs.items %}data-{{ attr }}="{{ value }}"{% endfor %}
+          onclick="{{ view_function|default:'viewFromButton' }}(this)"
+          title="Visualizar">
+    <i class="bi bi-eye"></i>
+  </button>
+  {% endif %}
+</div>

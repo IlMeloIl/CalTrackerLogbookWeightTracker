@@ -5,14 +5,19 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.paginator import Paginator
 from django.http import JsonResponse
-from django.shortcuts import render, redirect, get_object_or_404
+from django.shortcuts import render, redirect
 from django.views import View
 
 from .models import WeightEntry
 from .forms import WeightEntryForm
+from shared.utils import (
+    AjaxFormProcessorMixin,
+    AjaxCRUDMixin,
+    ContextDataMixin,
+)
 
 
-class WeightTrackerView(LoginRequiredMixin, View):
+class WeightTrackerView(ContextDataMixin, LoginRequiredMixin, View):
     template_name = "weight/weight_tracker.html"
 
     def _get_context_data(self, form=None):
@@ -25,13 +30,14 @@ class WeightTrackerView(LoginRequiredMixin, View):
         entries = paginator.get_page(page_number)
 
         metrics = WeightEntry.get_user_metrics(self.request.user)
-        chart_data = WeightEntry.get_chart_data(self.request.user, days_limit=365)
+
+        dados_grafico = WeightEntry.get_chart_data(self.request.user, days_limit=365)
 
         return {
             "form": form,
             "entries": entries,
             "metrics": metrics,
-            "chart_data": json.dumps(chart_data),
+            "chart_data": json.dumps(dados_grafico),
         }
 
     def _handle_unique_constraint_error(self, exception):
@@ -75,33 +81,18 @@ class ChartDataView(LoginRequiredMixin, View):
 
 class WeightEntryEditView(LoginRequiredMixin, View):
     def post(self, request, pk):
-        weight_entry = get_object_or_404(WeightEntry, pk=pk, user=request.user)
-        peso_kg = request.POST.get("peso_kg")
-        data = request.POST.get("data")
 
-        if not (peso_kg and data):
-            return JsonResponse({"sucesso": False, "erro": "Dados não fornecidos"})
+        dados_mapeados = request.POST.copy()
+        if "peso_kg" in dados_mapeados:
+            dados_mapeados["weight_kg"] = dados_mapeados["peso_kg"]
+        if "data" in dados_mapeados:
+            dados_mapeados["date"] = dados_mapeados["data"]
 
-        try:
-            weight_entry.weight_kg = float(peso_kg)
-            weight_entry.date = data
-            weight_entry.save()
-            return JsonResponse({"sucesso": True})
-        except ValueError:
-            return JsonResponse({"sucesso": False, "erro": "Dados inválidos"})
-        except Exception as e:
-            if "unique constraint" in str(e).lower():
-                return JsonResponse(
-                    {
-                        "sucesso": False,
-                        "erro": "Já existe um registro para esta data",
-                    }
-                )
-            return JsonResponse({"sucesso": False, "erro": "Erro ao salvar"})
+        return AjaxFormProcessorMixin.processar_edicao_ajax(
+            WeightEntry, pk, request.user, dados_mapeados, ["weight_kg", "date"]
+        )
 
 
-class WeightEntryDeleteView(LoginRequiredMixin, View):
+class WeightEntryDeleteView(AjaxCRUDMixin, LoginRequiredMixin, View):
     def post(self, request, pk):
-        weight_entry = get_object_or_404(WeightEntry, pk=pk, user=request.user)
-        weight_entry.delete()
-        return JsonResponse({"sucesso": True})
+        return self.processar_delete_ajax(WeightEntry, pk)

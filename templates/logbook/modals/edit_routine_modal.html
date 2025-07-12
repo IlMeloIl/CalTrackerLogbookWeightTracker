@@ -1,0 +1,18 @@
+{% extends "modal_edit_base.html" %}
+
+{% block modal_id %}editRoutineModal{% endblock %}
+
+{% block modal_title %}Editar Rotina{% endblock %}
+
+{% block form_id %}editRoutineForm{% endblock %}
+
+{% block hidden_fields %}
+<input type="hidden" id="edit_routine_id" name="routine_id">
+{% endblock %}
+
+{% block modal_fields %}
+<div class="mb-3">
+  <label for="edit_routine_name" class="form-label">Nome da Rotina</label>
+  <input type="text" class="form-control" id="edit_routine_name" name="name" required>
+</div>
+{% endblock %}

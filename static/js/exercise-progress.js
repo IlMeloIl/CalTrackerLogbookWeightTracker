@@ -1,41 +1,30 @@
 function selectExerciseCard(exerciseId, exerciseName) {
+    if (typeof AppUtils === 'undefined') {
+        console.error('AppUtils não disponível para selectExerciseCard');
+        return;
+    }
     const currentPeriod = document.getElementById('period-select') ?
                          document.getElementById('period-select').value : '90';
 
-    const url = new URL(window.location);
-    url.searchParams.set('exercise', exerciseId);
-    url.searchParams.set('period', currentPeriod);
-
-    window.location.href = url.toString();
+    AppUtils.url.atualizarParametros({
+        'exercise': exerciseId,
+        'period': currentPeriod
+    });
 }
 
-function selectExerciseCardFromCard(element) {
-    const exerciseId = element.dataset.exerciseId;
-    const exerciseName = element.dataset.exerciseName;
-    selectExerciseCard(exerciseId, exerciseName);
-}
+const selectExerciseCardFromCard = typeof AppUtils !== 'undefined' ?
+    AppUtils.acoes.criarFuncaoFromButton(
+        { exerciseId: 'exerciseId', exerciseName: 'exerciseName' },
+        (dados) => selectExerciseCard(dados.exerciseId, dados.exerciseName),
+        { nomeScript: 'exercise-progress.js' }
+    ) : function(element) {
+        console.error('AppUtils não disponível para selectExerciseCardFromCard');
+    };
 
-function changePeriod(period) {
-    const url = new URL(window.location);
-    const currentExercise = url.searchParams.get('exercise');
+function processarDadosProgresso(dadosGrafico) {
+    if (!dadosGrafico.datasets || dadosGrafico.datasets.length === 0) return null;
 
-    if (currentExercise) {
-        url.searchParams.set('exercise', currentExercise);
-        url.searchParams.set('period', period || '90');
-
-        window.location.href = url.toString();
-    }
-}
-
-function initExerciseProgressChart() {
-    const chartDataEl = document.getElementById('chart-data');
-    if (!chartDataEl) return;
-
-    const chartData = JSON.parse(chartDataEl.textContent);
-    
-    if (!chartData.datasets || chartData.datasets.length === 0) return;
-
-    const series = chartData.datasets.map(function(dataset) {
+    const series = dadosGrafico.datasets.map(function(dataset) {
         return {
             name: dataset.label,
             data: dataset.data.map(function(point) {
@@ -53,82 +42,55 @@ function initExerciseProgressChart() {
         };
     });
 
-    Highcharts.chart('progressChart', {
-        chart: {
-            type: 'line',
-            backgroundColor: 'transparent',
-            style: {
-                fontFamily: 'inherit'
-            },
-            zoomType: 'x'
-        },
-        title: {
-            text: 'Progressão do Exercício',
-            style: {
-                color: '#ffffff'
-            }
-        },
-        xAxis: {
-            type: 'datetime',
-            labels: {
-                style: {
-                    color: '#ffffff'
-                }
-            },
-            lineColor: '#6c757d',
-            tickColor: '#6c757d'
-        },
-        yAxis: {
-            title: {
-                text: 'Peso (kg)',
-                style: {
-                    color: '#ffffff'
-                }
-            },
-            labels: {
-                style: {
-                    color: '#ffffff'
-                }
-            },
-            gridLineColor: '#6c757d'
-        },
-        legend: {
-            itemStyle: {
-                color: '#ffffff'
-            },
-            itemHoverStyle: {
-                color: '#cccccc'
-            }
-        },
+    const configuracaoBase = AppUtils.graficos.criarConfiguracaoBase({
+        titulo: 'Progressão do Exercício',
+        tituloY: 'Peso (kg)',
+        habilitarZoom: true,
+        tipoEixoX: 'datetime'
+    });
+
+    return {
+        ...configuracaoBase,
         tooltip: {
-            backgroundColor: '#343a40',
-            style: {
-                color: '#ffffff'
-            },
+            ...configuracaoBase.tooltip,
             formatter: function() {
                 const date = new Date(this.x).toLocaleDateString('pt-BR');
-                return `<b>${this.series.name}</b><br/>
-                        Data: ${date}<br/>
-                        Peso: ${this.y} kg`;
+                return `<b>${this.series.name}</b><br/>Data: ${date}<br/>Peso: ${this.y} kg`;
             }
         },
         plotOptions: {
+            ...configuracaoBase.plotOptions,
             line: {
-                dataLabels: {
-                    enabled: false
-                },
-                enableMouseTracking: true,
+                ...configuracaoBase.plotOptions.line,
                 connectNulls: false
             }
         },
-        series: series,
-        credits: {
-            enabled: false
-        }
+        series: series
+    };
+}
+
+function changePeriod(period) {
+    const currentExercise = AppUtils.url.obterParametro('exercise');
+
+    if (currentExercise) {
+        AppUtils.url.atualizarParametros({
+            'exercise': currentExercise,
+            'period': period || '90'
+        });
+    }
+}
+
+function initExerciseProgressChart() {
+    return AppUtils.graficos.inicializarComProcessamento('progressChart', 'chart-data', {
+        processadorDados: processarDadosProgresso
     });
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+AppUtils.scripts.inicializar('exercise-progress.js', {
+    selectExerciseCardFromCard,
+    selectExerciseCard
+}, function() {
+
     initExerciseProgressChart();
 
     const exerciseCards = document.querySelectorAll('.exercise-card');
@@ -154,12 +116,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (exerciseId) {
                 const currentPeriod = document.getElementById('period-select') ?
                                      document.getElementById('period-select').value : '90';
-                
-                const url = new URL(window.location);
-                url.searchParams.set('exercise', exerciseId);
-                url.searchParams.set('period', currentPeriod);
-                
-                window.location.href = url.toString();
+
+                AppUtils.url.atualizarParametros({
+                    'exercise': exerciseId,
+                    'period': currentPeriod
+                });
             }
         });
     }

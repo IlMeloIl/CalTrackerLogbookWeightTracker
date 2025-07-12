@@ -1,75 +1,70 @@
+/**
+ * Abre modal de edição de exercício com dados pré-preenchidos
+ * @param {string|number} id - ID do exercício
+ * @param {string} name - Nome do exercício
+ * @param {string} description - Descrição do exercício
+ */
 function editExercise(id, name, description) {
-    document.getElementById('edit_exercise_id').value = id;
-    document.getElementById('edit_exercise_name').value = name;
-    document.getElementById('edit_exercise_description').value = description || '';
-    new bootstrap.Modal(document.getElementById('editExerciseModal')).show();
+    const dadosEntidade = { id, name, description: description || '' };
+    const mapeamento = {
+        id: 'edit_exercise_id',
+        name: 'edit_exercise_name',
+        description: 'edit_exercise_description'
+    };
+    AppUtils.entidades.abrirModalEdicaoGenerico('editExerciseModal', dadosEntidade, mapeamento, 'Editar Exercício');
 }
 
+/**
+ * Exclui exercício com confirmação do usuário
+ * @param {string|number} id - ID do exercício
+ * @param {string} name - Nome do exercício
+ */
 function deleteExercise(id, name) {
-    if (confirm(`Tem certeza que deseja excluir o exercício "${name}"?`)) {
-        fetch(`/logbook/exercicios/${id}/delete-ajax/`, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-                'Content-Type': 'application/x-www-form-urlencoded',
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                alert('Erro ao excluir exercício: ' + (data.error || 'Erro desconhecido'));
-            }
-        })
-        .catch(error => {
-            console.error('Erro:', error);
-            alert('Erro ao excluir exercício');
-        });
+    AppUtils.entidades.excluirEntidadeComConfirmacao(
+        id,
+        name,
+        `/logbook/exercicios/${id}/delete-ajax/`,
+        'o exercício',
+        { mensagemErroCustomizada: 'Erro ao excluir exercício' }
+    );
+}
+
+/**
+ * Função FromButton para edição de exercício
+ * Extrai dados do elemento e chama editExercise
+ */
+const editExerciseFromButton = AppUtils.entidades.criarFuncaoFromButtonGenerico(
+    { id: 'exerciseId', name: 'exerciseName', description: 'exerciseDescription' },
+    (dados) => editExercise(dados.id, dados.name, dados.description),
+    { nomeScript: 'exercises.js' },
+    'edit'
+);
+
+/**
+ * Função FromButton para exclusão de exercício
+ * Extrai dados do elemento e chama deleteExercise
+ */
+const deleteExerciseFromButton = AppUtils.entidades.criarFuncaoFromButtonGenerico(
+    { id: 'exerciseId', name: 'exerciseName' },
+    (dados) => deleteExercise(dados.id, dados.name),
+    { nomeScript: 'exercises.js' },
+    'delete'
+);
+
+/**
+ * Inicialização do módulo exercises.js
+ * Utiliza o padrão de inicialização padronizado com configuração de formulários
+ */
+AppUtils.entidades.inicializarScriptPadrao('exercises.js', {
+    editExerciseFromButton,
+    deleteExerciseFromButton
+}, [
+    {
+        formId: 'editExerciseForm',
+        config: {
+            urlComId: '/logbook/exercicios/{id}/edit-ajax/',
+            campoId: 'exercise_id',
+            mensagemErro: 'Erro ao editar exercício'
+        }
     }
-}
-
-function editExerciseFromButton(element) {
-    const id = element.dataset.exerciseId;
-    const name = element.dataset.exerciseName;
-    const description = element.dataset.exerciseDescription;
-    editExercise(id, name, description);
-}
-
-function deleteExerciseFromButton(element) {
-    const id = element.dataset.exerciseId;
-    const name = element.dataset.exerciseName;
-    deleteExercise(id, name);
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    const editExerciseForm = document.getElementById('editExerciseForm');
-    if (editExerciseForm) {
-        editExerciseForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(this);
-            const exerciseId = formData.get('exercise_id');
-            
-            fetch(`/logbook/exercicios/${exerciseId}/edit-ajax/`, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert('Erro ao editar exercício: ' + (data.error || 'Erro desconhecido'));
-                }
-            })
-            .catch(error => {
-                console.error('Erro:', error);
-                alert('Erro ao editar exercício');
-            });
-        });
-    }
-});
+]);

@@ -1,42 +1,53 @@
-from django.views.generic import CreateView, UpdateView, DeleteView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
-from django.shortcuts import render, redirect, get_object_or_404
+from django.shortcuts import render, redirect
 from django.views import View
-from django.http import JsonResponse
-from django.db import transaction, models
+from django.db import models
 from datetime import date
 
 from .models import Food, DailyLog
 from .forms import FoodForm, DailyLogForm
+from shared.utils import (
+    AjaxFormProcessorMixin,
+    BaseUserCreateView,
+    BaseUserUpdateView,
+    BaseUserDeleteView,
+    ReorderMixin,
+    AjaxCRUDMixin,
+)
 
 
-class BaseUserFilterMixin:
-    def get_queryset(self):
-        return self.model.objects.filter(user=self.request.user)
-
-
-class BaseFoodView(LoginRequiredMixin, BaseUserFilterMixin):
+class FoodCreateView(BaseUserCreateView):
     model = Food
     form_class = FoodForm
     template_name = "calories/food_form.html"
     success_url = reverse_lazy("calories:daily_log")
 
-
-class FoodCreateView(BaseFoodView, CreateView):
-    def form_valid(self, form):
-        form.instance.user = self.request.user
-        return super().form_valid(form)
-
-
-class FoodUpdateView(BaseFoodView, UpdateView):
-    pass
+    def get_mensagem_sucesso_criacao(self):
+        if hasattr(self, "object") and self.object and hasattr(self.object, "name"):
+            return f'Alimento "{self.object.name}" criado com sucesso!'
+        return f"Alimento criado com sucesso!"
 
 
-class FoodDeleteView(LoginRequiredMixin, BaseUserFilterMixin, DeleteView):
+class FoodUpdateView(BaseUserUpdateView):
+    model = Food
+    form_class = FoodForm
+    template_name = "calories/food_form.html"
+    success_url = reverse_lazy("calories:daily_log")
+
+    def get_mensagem_sucesso_atualizacao(self):
+        if hasattr(self, "object") and self.object and hasattr(self.object, "name"):
+            return f'Alimento "{self.object.name}" atualizado com sucesso!'
+        return f"Alimento atualizado com sucesso!"
+
+
+class FoodDeleteView(BaseUserDeleteView):
     model = Food
     template_name = "calories/food_confirm_delete.html"
     success_url = reverse_lazy("calories:daily_log")
+
+    def get_mensagem_sucesso_exclusao(self):
+        return f"Alimento excluído com sucesso!"
 
     def get_success_url(self):
         next_url = self.request.POST.get("next")
@@ -100,63 +111,40 @@ class DailyLogView(LoginRequiredMixin, View):
         return render(request, self.template_name, context)
 
 
-class DailyLogDeleteView(LoginRequiredMixin, BaseUserFilterMixin, DeleteView):
+class DailyLogDeleteView(BaseUserDeleteView):
     model = DailyLog
     template_name = "calories/daily_log_confirm_delete.html"
     success_url = reverse_lazy("calories:daily_log")
 
+    def get_mensagem_sucesso_exclusao(self):
+        return "Registro do diário excluído com sucesso!"
+
 
 class DailyLogEditView(LoginRequiredMixin, View):
     def post(self, request, pk):
-        daily_log = get_object_or_404(DailyLog, pk=pk, user=request.user)
-        quantity_grams = request.POST.get("quantity_grams")
-
-        if not quantity_grams:
-            return JsonResponse({"success": False, "error": "Quantidade não fornecida"})
-
-        try:
-            daily_log.quantity_grams = float(quantity_grams)
-            daily_log.save()
-            return JsonResponse({"success": True})
-        except ValueError:
-            return JsonResponse({"success": False, "error": "Quantidade inválida"})
+        return AjaxFormProcessorMixin.processar_edicao_ajax(
+            DailyLog, pk, request.user, request.POST, ["quantity_grams"]
+        )
 
 
-class BaseFoodAjaxView(LoginRequiredMixin, View):
-    def _processar_form(self, form):
-        if form.is_valid():
-            form.save()
-            return JsonResponse({"success": True})
-        return JsonResponse({"success": False, "errors": form.errors})
-
-
-class FoodCreateAjaxView(BaseFoodAjaxView):
+class FoodCreateAjaxView(AjaxCRUDMixin, LoginRequiredMixin, View):
     def post(self, request):
         form = FoodForm(request.POST)
-        if form.is_valid():
-            form.instance.user = request.user
-        return self._processar_form(form)
+        return AjaxFormProcessorMixin.processar_formulario_ajax(
+            form, usuario=request.user
+        )
 
 
-class FoodUpdateAjaxView(BaseFoodAjaxView):
+class FoodUpdateAjaxView(AjaxCRUDMixin, LoginRequiredMixin, View):
     def post(self, request, pk):
-        food = get_object_or_404(Food, pk=pk, user=request.user)
-        form = FoodForm(request.POST, instance=food)
-        return self._processar_form(form)
+        return self.processar_update_ajax(Food, pk, FoodForm)
 
 
-class ReorderDailyLogsView(LoginRequiredMixin, View):
+class ReorderDailyLogsView(ReorderMixin, LoginRequiredMixin, View):
     def post(self, request):
-        try:
-            food_ids = request.POST.getlist("food_ids[]")
-            today = date.today()
+        food_ids = request.POST.getlist("food_ids[]")
+        today = date.today()
 
-            with transaction.atomic():
-                for i, food_id in enumerate(food_ids, 1):
-                    DailyLog.objects.filter(
-                        user=request.user, date=today, pk=food_id
-                    ).update(order=i)
-
-            return JsonResponse({"success": True})
-        except Exception as e:
-            return JsonResponse({"success": False, "error": str(e)})
+        return self.processar_reordenacao(
+            DailyLog, food_ids, campo_filtro="user", filtros_extras={"date": today}
+        )

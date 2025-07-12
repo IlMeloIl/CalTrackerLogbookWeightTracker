@@ -1,0 +1,23 @@
+{% extends "modal_edit_base.html" %}
+
+{% block modal_id %}editExerciseModal{% endblock %}
+
+{% block modal_title %}Editar Exercício{% endblock %}
+
+{% block form_id %}editExerciseForm{% endblock %}
+
+{% block hidden_fields %}
+<input type="hidden" id="edit_exercise_id" name="exercise_id">
+{% endblock %}
+
+{% block modal_fields %}
+<div class="mb-3">
+  <label for="edit_exercise_name" class="form-label">Nome do Exercício</label>
+  <input type="text" class="form-control" id="edit_exercise_name" name="name" required>
+</div>
+
+<div class="mb-3">
+  <label for="edit_exercise_description" class="form-label">Descrição</label>
+  <textarea class="form-control" id="edit_exercise_description" name="description" rows="3"></textarea>
+</div>
+{% endblock %}

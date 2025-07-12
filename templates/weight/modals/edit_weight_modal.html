@@ -1,0 +1,35 @@
+{% extends "modal_edit_base.html" %}
+
+{% block modal_id %}editarRegistroPesoModal{% endblock %}
+
+{% block modal_title %}
+<i class="bi bi-pencil me-2"></i>Editar Registro de Peso
+{% endblock %}
+
+{% block modal_title_id %}editarRegistroPesoModalLabel{% endblock %}
+
+{% block form_id %}editarRegistroPesoForm{% endblock %}
+
+{% block modal_attributes %}aria-labelledby="editarRegistroPesoModalLabel" aria-hidden="true"{% endblock %}
+
+{% block hidden_fields %}
+<input type="hidden" id="editar_registro_id" name="registro_id">
+{% endblock %}
+
+{% block modal_fields %}
+<div class="mb-3">
+  <label for="editar_peso_kg" class="form-label">Peso (kg)</label>
+  <div class="input-group">
+    <input type="number" class="form-control" id="editar_peso_kg" name="peso_kg"
+           step="0.01" min="1" max="1000" required>
+    <span class="input-group-text">kg</span>
+  </div>
+</div>
+
+<div class="mb-3">
+  <label for="editar_data" class="form-label">Data</label>
+  <input type="date" class="form-control" id="editar_data" name="data" required>
+</div>
+{% endblock %}
+
+{% block submit_button_text %}Salvar Alterações{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "modal_edit_base.html" %}
+
+{% block modal_id %}editDailyLogModal{% endblock %}
+
+{% block modal_title %}Editar Quantidade{% endblock %}
+
+{% block form_id %}editDailyLogForm{% endblock %}
+
+{% block hidden_fields %}
+<input type="hidden" id="edit_log_id" name="log_id">
+{% endblock %}
+
+{% block modal_fields %}
+<div class="mb-3">
+  <h6 id="edit_food_name"></h6>
+</div>
+
+<div class="mb-3">
+  <label for="edit_quantity" class="form-label">Quantidade (gramas)</label>
+  <input type="number" class="form-control" id="edit_quantity" name="quantity_grams"
+         step="0.01" min="0.01" required>
+</div>
+{% endblock %}

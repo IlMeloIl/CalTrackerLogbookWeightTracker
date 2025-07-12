@@ -222,33 +222,7 @@
   </div>
 </div>
 
-<div class="modal fade" id="editDailyLogModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Editar Quantidade</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <form id="editDailyLogForm" method="post">
-        <div class="modal-body">
-          {% csrf_token %}
-          <input type="hidden" id="edit_log_id" name="log_id">
-          <div class="mb-3">
-            <h6 id="edit_food_name"></h6>
-          </div>
-          <div class="mb-3">
-            <label for="edit_quantity" class="form-label">Quantidade (gramas)</label>
-            <input type="number" class="form-control" id="edit_quantity" name="quantity_grams" step="0.01" min="0.01" required>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" class="btn btn-primary">Salvar</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
+{% include "calories/modals/edit_daily_log_modal.html" %}
 
 {% endblock %}
 

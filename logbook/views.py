@@ -5,18 +5,23 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import models, IntegrityError, transaction
 from django.db.models import Q
-from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views import View
 from django.views.generic import (
     ListView,
-    CreateView,
-    UpdateView,
-    DeleteView,
     DetailView,
     TemplateView,
+)
+from shared.utils import (
+    BaseUserCreateView,
+    BaseUserUpdateView,
+    BaseUserDeleteView,
+    AjaxCRUDMixin,
+    ReorderMixin,
+    ContextDataMixin,
+    JsonResponseHelper,
 )
 
 from .models import (
@@ -72,39 +77,24 @@ class WorkoutUtils:
         return exercises_data
 
 
-class BaseCreateUpdateMixin:
-    def handle_integrity_error(self, form, error_message):
-        messages.error(self.request, error_message)
-        return self.form_invalid(form)
-
-    def handle_success(self, form, success_message):
-        messages.success(self.request, success_message)
-        return super().form_valid(form)
-
-
 class BaseWorkoutValidationMixin:
     def validate_active_session(self, session):
         if session.status not in ["active", "completed"]:
-            return JsonResponse(
-                {"success": False, "error": "Treino não pode ser editado"}
-            )
+
+            return JsonResponseHelper.erro("Treino não pode ser editado")
         return None
 
     def validate_sets_range(self, sets):
+
         try:
             sets = int(sets)
             if sets < 1 or sets > 20:
-                return JsonResponse(
-                    {
-                        "success": False,
-                        "error": "Número de séries deve estar entre 1 e 20",
-                    }
+                return JsonResponseHelper.erro(
+                    "Número de séries deve estar entre 1 e 20"
                 )
             return sets
         except ValueError:
-            return JsonResponse(
-                {"success": False, "error": "Número de séries inválido"}
-            )
+            return JsonResponseHelper.erro("Número de séries inválido")
 
 
 class RoutineListView(LoginRequiredMixin, ListView):
@@ -116,7 +106,7 @@ class RoutineListView(LoginRequiredMixin, ListView):
         return Routine.objects.filter(user=self.request.user)
 
 
-class RoutineCreateView(BaseCreateUpdateMixin, LoginRequiredMixin, CreateView):
+class RoutineCreateView(BaseUserCreateView):
     model = Routine
     form_class = RoutineForm
     template_name = "logbook/routine_form.html"
@@ -127,50 +117,40 @@ class RoutineCreateView(BaseCreateUpdateMixin, LoginRequiredMixin, CreateView):
         kwargs["user"] = self.request.user
         return kwargs
 
-    def form_valid(self, form):
-        try:
-            form.instance.user = self.request.user
-            return self.handle_success(
-                form, f'Rotina "{form.instance.name}" criada com sucesso!'
-            )
-        except IntegrityError:
-            return self.handle_integrity_error(
-                form, "Você já tem uma rotina com este nome."
-            )
+    def get_mensagem_sucesso_criacao(self):
+        if hasattr(self, "object") and self.object and hasattr(self.object, "name"):
+            return f'Rotina "{self.object.name}" criada com sucesso!'
+        return f"Rotina criada com sucesso!"
+
+    def get_mensagem_erro_integridade(self):
+        return "Você já tem uma rotina com este nome."
 
 
-class RoutineUpdateView(BaseCreateUpdateMixin, LoginRequiredMixin, UpdateView):
+class RoutineUpdateView(BaseUserUpdateView):
     model = Routine
     form_class = RoutineForm
     template_name = "logbook/routine_form.html"
     success_url = reverse_lazy("logbook:routine_list")
-
-    def get_queryset(self):
-        return Routine.objects.filter(user=self.request.user)
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs["user"] = self.request.user
         return kwargs
 
-    def form_valid(self, form):
-        try:
-            return self.handle_success(
-                form, f'Rotina "{form.instance.name}" atualizada com sucesso!'
-            )
-        except IntegrityError:
-            return self.handle_integrity_error(
-                form, "Você já tem uma rotina com este nome."
-            )
+    def get_mensagem_sucesso_atualizacao(self):
+        return f'Rotina "{self.object.name}" atualizada com sucesso!'
+
+    def get_mensagem_erro_integridade(self):
+        return "Você já tem uma rotina com este nome."
 
 
-class RoutineDeleteView(LoginRequiredMixin, DeleteView):
+class RoutineDeleteView(BaseUserDeleteView):
     model = Routine
     template_name = "logbook/routine_confirm_delete.html"
     success_url = reverse_lazy("logbook:routine_list")
 
-    def get_queryset(self):
-        return Routine.objects.filter(user=self.request.user)
+    def get_mensagem_sucesso_exclusao(self):
+        return f'Rotina "{self.object.name}" excluída com sucesso!'
 
     def delete(self, request, *args, **kwargs):
         self.object = self.get_object()
@@ -185,8 +165,6 @@ class RoutineDeleteView(LoginRequiredMixin, DeleteView):
             )
             return redirect("logbook:routine_detail", pk=self.object.pk)
 
-        routine_name = self.object.name
-        messages.success(request, f'Rotina "{routine_name}" excluída com sucesso!')
         return super().delete(request, *args, **kwargs)
 
 
@@ -219,7 +197,7 @@ class ExerciseListView(LoginRequiredMixin, ListView):
         ).order_by("-user", "name")
 
 
-class ExerciseCreateView(BaseCreateUpdateMixin, LoginRequiredMixin, CreateView):
+class ExerciseCreateView(BaseUserCreateView):
     model = Exercise
     form_class = ExerciseForm
     template_name = "logbook/exercise_form.html"
@@ -230,49 +208,40 @@ class ExerciseCreateView(BaseCreateUpdateMixin, LoginRequiredMixin, CreateView):
         kwargs["user"] = self.request.user
         return kwargs
 
-    def form_valid(self, form):
-        try:
-            form.instance.user = self.request.user
-            return self.handle_success(
-                form, f'Exercício "{form.instance.name}" criado com sucesso!'
-            )
-        except IntegrityError:
-            return self.handle_integrity_error(
-                form, "Você já tem um exercício com este nome."
-            )
+    def get_mensagem_sucesso_criacao(self):
+        if hasattr(self, "object") and self.object and hasattr(self.object, "name"):
+            return f'Exercício "{self.object.name}" criado com sucesso!'
+        return f"Exercício criado com sucesso!"
+
+    def get_mensagem_erro_integridade(self):
+        return "Você já tem um exercício com este nome."
 
 
-class ExerciseUpdateView(BaseCreateUpdateMixin, LoginRequiredMixin, UpdateView):
+class ExerciseUpdateView(BaseUserUpdateView):
     model = Exercise
     form_class = ExerciseForm
     template_name = "logbook/exercise_form.html"
     success_url = reverse_lazy("logbook:exercise_list")
-
-    def get_queryset(self):
-        return Exercise.objects.filter(user=self.request.user)
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs["user"] = self.request.user
         return kwargs
 
-    def form_valid(self, form):
-        try:
-            return super().form_valid(form)
-        except IntegrityError:
-            return self.handle_integrity_error(
-                form, "Você já tem um exercício com este nome."
-            )
+    def get_mensagem_sucesso_atualizacao(self):
+        return f'Exercício "{self.object.name}" atualizado com sucesso!'
+
+    def get_mensagem_erro_integridade(self):
+        return "Você já tem um exercício com este nome."
 
 
-class ExerciseDeleteView(LoginRequiredMixin, DeleteView):
+class ExerciseDeleteView(BaseUserDeleteView):
     model = Exercise
     template_name = "logbook/exercise_confirm_delete.html"
     success_url = reverse_lazy("logbook:exercise_list")
 
-    def get_queryset(self):
-
-        return Exercise.objects.filter(user=self.request.user)
+    def get_mensagem_sucesso_exclusao(self):
+        return f'Exercício "{self.object.name}" excluído com sucesso!'
 
     def delete(self, request, *args, **kwargs):
         self.object = self.get_object()
@@ -357,22 +326,18 @@ class RemoveExerciseFromRoutineView(LoginRequiredMixin, View):
         return redirect("logbook:routine_detail", pk=routine_id)
 
 
-class ReorderExercisesView(LoginRequiredMixin, View):
+class ReorderExercisesView(ReorderMixin, LoginRequiredMixin, View):
     def post(self, request, routine_id):
         routine = get_object_or_404(Routine, id=routine_id, user=request.user)
+        exercise_ids = request.POST.getlist("exercise_ids[]")
 
-        try:
-            exercise_ids = request.POST.getlist("exercise_ids[]")
-
-            with transaction.atomic():
-                for i, exercise_id in enumerate(exercise_ids, 1):
-                    RoutineExercise.objects.filter(
-                        routine=routine, exercise_id=exercise_id
-                    ).update(order=i)
-
-            return JsonResponse({"success": True})
-        except Exception as e:
-            return JsonResponse({"success": False, "error": str(e)})
+        return self.processar_reordenacao(
+            RoutineExercise,
+            exercise_ids,
+            filtros_extras={"routine": routine},
+            campo_order="order",
+            campo_id="exercise_id",
+        )
 
 
 class StartWorkoutView(LoginRequiredMixin, View):
@@ -480,21 +445,20 @@ class LogSetView(LoginRequiredMixin, View):
         exercise = get_object_or_404(Exercise, id=exercise_id)
 
         if session.status not in ["active", "completed"]:
-            return JsonResponse(
-                {"success": False, "error": "Sessão não pode ser editada"}
-            )
+
+            return JsonResponseHelper.erro("Sessão não pode ser editada")
 
         try:
             workout_exercise = WorkoutExercise.objects.get(
                 workout_session=session, exercise=exercise
             )
         except WorkoutExercise.DoesNotExist:
-            return JsonResponse(
-                {"success": False, "error": "Exercício não está no treino"}
-            )
+
+            return JsonResponseHelper.erro("Exercício não está no treino")
 
         if set_number < 1 or set_number > workout_exercise.sets:
-            return JsonResponse({"success": False, "error": "Número de série inválido"})
+
+            return JsonResponseHelper.erro("Número de série inválido")
 
         try:
 
@@ -508,17 +472,19 @@ class LogSetView(LoginRequiredMixin, View):
             form = SetLogForm(request.POST, instance=set_log)
             if form.is_valid():
                 form.save()
-                return JsonResponse(
+
+                return JsonResponseHelper.sucesso(
                     {
-                        "success": True,
                         "weight": str(set_log.weight),
                         "reps": set_log.reps,
                     }
                 )
             else:
-                return JsonResponse({"success": False, "errors": form.errors})
+
+                return JsonResponseHelper.erro_validacao_formulario(form)
         except Exception as e:
-            return JsonResponse({"success": False, "error": str(e)})
+
+            return JsonResponseHelper.erro(str(e))
 
 
 class CompleteWorkoutView(LoginRequiredMixin, View):
@@ -572,18 +538,22 @@ class CancelWorkoutView(LoginRequiredMixin, View):
             return redirect("logbook:workout_session", pk=session_id)
 
 
-class DashboardView(LoginRequiredMixin, TemplateView):
+class DashboardView(ContextDataMixin, LoginRequiredMixin, TemplateView):
     template_name = "logbook/dashboard.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
+        routines_qs = Routine.objects.filter(user=self.request.user)
+        exercises_qs = Exercise.objects.filter(user=self.request.user)
+        completed_workouts_qs = WorkoutSession.objects.filter(
+            user=self.request.user, status="completed"
+        )
+
         context["stats"] = {
-            "total_routines": Routine.objects.filter(user=self.request.user).count(),
-            "total_exercises": Exercise.objects.filter(user=self.request.user).count(),
-            "total_workouts": WorkoutSession.objects.filter(
-                user=self.request.user, status="completed"
-            ).count(),
+            "total_routines": routines_qs.count(),
+            "total_exercises": exercises_qs.count(),
+            "total_workouts": completed_workouts_qs.count(),
             "workouts_this_week": WorkoutSession.objects.filter(
                 user=self.request.user,
                 status="completed",
@@ -591,9 +561,9 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             ).count(),
         }
 
-        context["recent_sessions"] = WorkoutSession.objects.filter(
-            user=self.request.user, status="completed"
-        ).order_by("-date", "-start_time")[:5]
+        context["recent_sessions"] = completed_workouts_qs.order_by(
+            "-date", "-start_time"
+        )[:5]
 
         context["active_session"] = WorkoutSession.objects.filter(
             user=self.request.user, status="active"
@@ -821,12 +791,13 @@ class ExerciseProgressView(LoginRequiredMixin, TemplateView):
         return json.dumps(chart_data)
 
 
-class ReorderWorkoutExercisesView(LoginRequiredMixin, View):
+class ReorderWorkoutExercisesView(ReorderMixin, LoginRequiredMixin, View):
     def post(self, request, session_id):
         session = get_object_or_404(WorkoutSession, id=session_id, user=request.user)
 
         if session.status != "active":
-            return JsonResponse({"success": False, "error": "Treino não está ativo"})
+
+            return JsonResponseHelper.erro("Treino não está ativo")
 
         exercise_ids = request.POST.getlist("exercise_ids[]")
 
@@ -836,36 +807,22 @@ class ReorderWorkoutExercisesView(LoginRequiredMixin, View):
                 try:
                     valid_exercise_ids.append(int(exercise_id))
                 except ValueError:
-                    return JsonResponse(
-                        {
-                            "success": False,
-                            "error": f"ID de exercício inválido: {exercise_id}",
-                        }
+
+                    return JsonResponseHelper.erro(
+                        f"ID de exercício inválido: {exercise_id}"
                     )
 
         if not valid_exercise_ids:
-            return JsonResponse(
-                {"success": False, "error": "Nenhum ID de exercício válido fornecido"}
-            )
 
-        try:
-            with transaction.atomic():
-                for index, exercise_id in enumerate(valid_exercise_ids, start=1):
-                    updated = WorkoutExercise.objects.filter(
-                        workout_session=session, exercise_id=exercise_id
-                    ).update(order=index)
+            return JsonResponseHelper.erro("Nenhum ID de exercício válido fornecido")
 
-                    if updated == 0:
-                        return JsonResponse(
-                            {
-                                "success": False,
-                                "error": f"Exercício com ID {exercise_id} não encontrado no treino",
-                            }
-                        )
-
-            return JsonResponse({"success": True})
-        except Exception as e:
-            return JsonResponse({"success": False, "error": str(e)})
+        return self.processar_reordenacao(
+            WorkoutExercise,
+            valid_exercise_ids,
+            filtros_extras={"workout_session": session},
+            campo_order="order",
+            campo_id="exercise_id",
+        )
 
 
 class AddExerciseToWorkoutView(BaseWorkoutValidationMixin, LoginRequiredMixin, View):
@@ -877,8 +834,12 @@ class AddExerciseToWorkoutView(BaseWorkoutValidationMixin, LoginRequiredMixin, V
             return validation_error
 
         exercise_id = request.POST.get("exercise_id")
+        if not exercise_id:
+
+            return JsonResponseHelper.erro("ID do exercício não fornecido")
+
         sets = self.validate_sets_range(request.POST.get("sets", 3))
-        if isinstance(sets, JsonResponse):
+        if hasattr(sets, "status_code"):
             return sets
 
         exercise = get_object_or_404(Exercise, id=exercise_id)
@@ -886,12 +847,12 @@ class AddExerciseToWorkoutView(BaseWorkoutValidationMixin, LoginRequiredMixin, V
         if WorkoutExercise.objects.filter(
             workout_session=session, exercise=exercise
         ).exists():
-            return JsonResponse(
-                {"success": False, "error": "Exercício já está no treino"}
-            )
+
+            return JsonResponseHelper.erro("Exercício já está no treino")
 
         if exercise.user and exercise.user != request.user:
-            return JsonResponse({"success": False, "error": "Exercício não encontrado"})
+
+            return JsonResponseHelper.erro("Exercício não encontrado")
 
         try:
             max_order = (
@@ -908,9 +869,10 @@ class AddExerciseToWorkoutView(BaseWorkoutValidationMixin, LoginRequiredMixin, V
                 sets=sets,
             )
 
-            return JsonResponse({"success": True})
+            return JsonResponseHelper.sucesso()
         except Exception as e:
-            return JsonResponse({"success": False, "error": str(e)})
+
+            return JsonResponseHelper.erro(str(e))
 
 
 class RemoveExerciseFromWorkoutView(LoginRequiredMixin, View):
@@ -918,9 +880,8 @@ class RemoveExerciseFromWorkoutView(LoginRequiredMixin, View):
         session = get_object_or_404(WorkoutSession, id=session_id, user=request.user)
 
         if session.status not in ["active", "completed"]:
-            return JsonResponse(
-                {"success": False, "error": "Treino não pode ser editado"}
-            )
+
+            return JsonResponseHelper.erro("Treino não pode ser editado")
 
         try:
             with transaction.atomic():
@@ -938,13 +899,13 @@ class RemoveExerciseFromWorkoutView(LoginRequiredMixin, View):
                     workout_session=session, order__gt=removed_order
                 ).update(order=models.F("order") - 1)
 
-            return JsonResponse({"success": True})
+            return JsonResponseHelper.sucesso()
         except WorkoutExercise.DoesNotExist:
-            return JsonResponse(
-                {"success": False, "error": "Exercício não encontrado no treino"}
-            )
+
+            return JsonResponseHelper.erro("Exercício não encontrado no treino")
         except Exception as e:
-            return JsonResponse({"success": False, "error": str(e)})
+
+            return JsonResponseHelper.erro(str(e))
 
 
 class UpdateWorkoutExerciseSetsView(
@@ -958,7 +919,7 @@ class UpdateWorkoutExerciseSetsView(
             return validation_error
 
         sets = self.validate_sets_range(request.POST.get("sets"))
-        if isinstance(sets, JsonResponse):
+        if hasattr(sets, "status_code"):
             return sets
 
         try:
@@ -977,133 +938,70 @@ class UpdateWorkoutExerciseSetsView(
                         set_number__gt=sets,
                     ).delete()
 
-            return JsonResponse({"success": True})
+            return JsonResponseHelper.sucesso()
         except WorkoutExercise.DoesNotExist:
-            return JsonResponse(
-                {"success": False, "error": "Exercício não encontrado no treino"}
-            )
+            return JsonResponseHelper.erro("Exercício não encontrado no treino")
         except Exception as e:
-            return JsonResponse({"success": False, "error": str(e)})
+            return JsonResponseHelper.erro(str(e))
 
 
-class RoutineDeleteAjaxView(LoginRequiredMixin, View):
+class RoutineDeleteAjaxView(AjaxCRUDMixin, LoginRequiredMixin, View):
     def post(self, request, pk):
-        routine = get_object_or_404(Routine, pk=pk, user=request.user)
-
-        active_sessions = WorkoutSession.objects.filter(
-            routine=routine, status="active"
-        )
-
-        if active_sessions.exists():
-            return JsonResponse(
-                {
-                    "success": False,
-                    "error": "Não é possível excluir uma rotina com treinos ativos.",
-                }
+        def validar_dependencias_rotina(routine):
+            active_sessions = WorkoutSession.objects.filter(
+                routine=routine, status="active"
             )
+            if active_sessions.exists():
+                return "Não é possível excluir uma rotina com treinos ativos."
+            return None
 
-        routine_name = routine.name
-        routine.delete()
-        return JsonResponse(
-            {
-                "success": True,
-                "message": f'Rotina "{routine_name}" excluída com sucesso!',
-            }
+        return self.processar_delete_ajax(
+            Routine, pk, validar_dependencias=validar_dependencias_rotina
         )
 
 
-class RoutineUpdateAjaxView(LoginRequiredMixin, View):
+class RoutineUpdateAjaxView(AjaxCRUDMixin, LoginRequiredMixin, View):
     def post(self, request, pk):
-        routine = get_object_or_404(Routine, pk=pk, user=request.user)
-        form = RoutineForm(request.POST, instance=routine, user=request.user)
-
-        if form.is_valid():
-            try:
-                form.save()
-                return JsonResponse(
-                    {
-                        "success": True,
-                        "message": f'Rotina "{form.instance.name}" '
-                        f"atualizada com sucesso!",
-                    }
-                )
-            except IntegrityError:
-                return JsonResponse(
-                    {
-                        "success": False,
-                        "error": "Você já tem uma rotina com este nome.",
-                    }
-                )
-        else:
-            return JsonResponse({"success": False, "errors": form.errors})
+        return self.processar_update_ajax(Routine, pk, RoutineForm, user=request.user)
 
 
-class ExerciseDeleteAjaxView(LoginRequiredMixin, View):
+class ExerciseDeleteAjaxView(AjaxCRUDMixin, LoginRequiredMixin, View):
     def post(self, request, pk):
-        exercise = get_object_or_404(Exercise, pk=pk, user=request.user)
+        def validar_dependencias_exercicio(exercise):
+            routine_uses = RoutineExercise.objects.filter(
+                exercise=exercise, routine__user=request.user
+            )
+            if routine_uses.exists():
+                routine_names = [ru.routine.name for ru in routine_uses[:3]]
+                if len(routine_uses) > 3:
+                    routine_names.append("...")
+                return (
+                    f"Não é possível excluir este exercício. Ele está "
+                    f'sendo usado nas rotinas: {", ".join(routine_names)}'
+                )
+            return None
 
-        routine_uses = RoutineExercise.objects.filter(
-            exercise=exercise, routine__user=request.user
+        return self.processar_delete_ajax(
+            Exercise, pk, validar_dependencias=validar_dependencias_exercicio
         )
 
-        if routine_uses.exists():
-            routine_names = [ru.routine.name for ru in routine_uses[:3]]
-            if len(routine_uses) > 3:
-                routine_names.append("...")
 
-            return JsonResponse(
-                {
-                    "success": False,
-                    "error": f"Não é possível excluir este exercício. Ele está "
-                    f'sendo usado nas rotinas: {", ".join(routine_names)}',
-                }
-            )
-
-        exercise.delete()
-        return JsonResponse({"success": True})
-
-
-class ExerciseUpdateAjaxView(LoginRequiredMixin, View):
+class ExerciseUpdateAjaxView(AjaxCRUDMixin, LoginRequiredMixin, View):
     def post(self, request, pk):
-        exercise = get_object_or_404(Exercise, pk=pk, user=request.user)
-        form = ExerciseForm(request.POST, instance=exercise, user=request.user)
-
-        if form.is_valid():
-            try:
-                form.save()
-                return JsonResponse({"success": True})
-            except IntegrityError:
-                return JsonResponse(
-                    {
-                        "success": False,
-                        "error": "Você já tem um exercício com este nome.",
-                    }
-                )
-        else:
-            return JsonResponse({"success": False, "errors": form.errors})
+        return self.processar_update_ajax(Exercise, pk, ExerciseForm, user=request.user)
 
 
-class WorkoutSessionDeleteView(LoginRequiredMixin, View):
+class WorkoutSessionDeleteView(AjaxCRUDMixin, LoginRequiredMixin, View):
     def post(self, request, pk):
-        session = get_object_or_404(WorkoutSession, pk=pk, user=request.user)
+        def validar_dependencias_workout_session(session):
+            if session.status == "active":
+                return "Não é possível excluir um treino ativo."
+            return None
 
-        if session.status == "active":
-            return JsonResponse(
-                {
-                    "success": False,
-                    "error": "Não é possível excluir um treino ativo.",
-                }
-            )
-
-        routine_name = session.routine.name
-        session_date = session.date.strftime("%d/%m/%Y")
-        session.delete()
-
-        return JsonResponse(
-            {
-                "success": True,
-                "message": f'Treino "{routine_name}" de {session_date} excluído com sucesso!',
-            }
+        return self.processar_delete_ajax(
+            WorkoutSession,
+            pk,
+            validar_dependencias=validar_dependencias_workout_session,
         )
 
 

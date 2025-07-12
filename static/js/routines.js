@@ -1,73 +1,68 @@
+/**
+ * Abre modal de edição de rotina com dados pré-preenchidos
+ * @param {string|number} id - ID da rotina
+ * @param {string} name - Nome da rotina
+ */
 function editRoutine(id, name) {
-    document.getElementById('edit_routine_id').value = id;
-    document.getElementById('edit_routine_name').value = name;
-    new bootstrap.Modal(document.getElementById('editRoutineModal')).show();
+    const dadosEntidade = { id, name };
+    const mapeamento = {
+        id: 'edit_routine_id',
+        name: 'edit_routine_name'
+    };
+    AppUtils.entidades.abrirModalEdicaoGenerico('editRoutineModal', dadosEntidade, mapeamento, 'Editar Rotina');
 }
 
+/**
+ * Exclui rotina com confirmação do usuário
+ * @param {string|number} id - ID da rotina
+ * @param {string} name - Nome da rotina
+ */
 function deleteRoutine(id, name) {
-    if (confirm(`Tem certeza que deseja excluir a rotina "${name}"?`)) {
-        fetch(`/logbook/rotinas/${id}/delete-ajax/`, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-                'Content-Type': 'application/x-www-form-urlencoded',
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                alert('Erro ao excluir rotina: ' + (data.error || 'Erro desconhecido'));
-            }
-        })
-        .catch(error => {
-            console.error('Erro:', error);
-            alert('Erro ao excluir rotina');
-        });
+    AppUtils.entidades.excluirEntidadeComConfirmacao(
+        id,
+        name,
+        `/logbook/rotinas/${id}/delete-ajax/`,
+        'a rotina',
+        { mensagemErroCustomizada: 'Erro ao excluir rotina' }
+    );
+}
+
+/**
+ * Função FromButton para edição de rotina
+ * Extrai dados do elemento e chama editRoutine
+ */
+const editRoutineFromButton = AppUtils.entidades.criarFuncaoFromButtonGenerico(
+    { id: 'routineId', name: 'routineName' },
+    (dados) => editRoutine(dados.id, dados.name),
+    { nomeScript: 'routines.js' },
+    'edit'
+);
+
+/**
+ * Função FromButton para exclusão de rotina
+ * Extrai dados do elemento e chama deleteRoutine
+ */
+const deleteRoutineFromButton = AppUtils.entidades.criarFuncaoFromButtonGenerico(
+    { id: 'routineId', name: 'routineName' },
+    (dados) => deleteRoutine(dados.id, dados.name),
+    { nomeScript: 'routines.js' },
+    'delete'
+);
+
+/**
+ * Inicialização do módulo routines.js
+ * Utiliza o padrão de inicialização padronizado com configuração de formulários
+ */
+AppUtils.entidades.inicializarScriptPadrao('routines.js', {
+    editRoutineFromButton,
+    deleteRoutineFromButton
+}, [
+    {
+        formId: 'editRoutineForm',
+        config: {
+            urlComId: '/logbook/rotinas/{id}/edit-ajax/',
+            campoId: 'routine_id',
+            mensagemErro: 'Erro ao editar rotina'
+        }
     }
-}
-
-function editRoutineFromButton(element) {
-    const id = element.dataset.routineId;
-    const name = element.dataset.routineName;
-    editRoutine(id, name);
-}
-
-function deleteRoutineFromButton(element) {
-    const id = element.dataset.routineId;
-    const name = element.dataset.routineName;
-    deleteRoutine(id, name);
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    const editRoutineForm = document.getElementById('editRoutineForm');
-    if (editRoutineForm) {
-        editRoutineForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(this);
-            const routineId = formData.get('routine_id');
-            
-            fetch(`/logbook/rotinas/${routineId}/edit-ajax/`, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert('Erro ao editar rotina: ' + (data.error || 'Erro desconhecido'));
-                }
-            })
-            .catch(error => {
-                console.error('Erro:', error);
-                alert('Erro ao editar rotina');
-            });
-        });
-    }
-});
+]);

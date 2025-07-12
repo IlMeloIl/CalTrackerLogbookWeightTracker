@@ -3,9 +3,10 @@ from django.core.exceptions import ValidationError
 from .models import Routine, Exercise, RoutineExercise, WorkoutSession, SetLog
 from django.db import models
 from datetime import date
+from shared.utils import NumericValidatorMixin, UniqueNameValidatorMixin
 
 
-class RoutineForm(forms.ModelForm):
+class RoutineForm(UniqueNameValidatorMixin, forms.ModelForm):
     class Meta:
         model = Routine
         fields = ["name"]
@@ -20,27 +21,14 @@ class RoutineForm(forms.ModelForm):
 
     def clean_name(self):
         name = self.cleaned_data.get("name")
-        if name:
-            name = name.strip()
-            if len(name) < 2:
-                raise ValidationError("Nome deve ter pelo menos 2 caracteres.")
-
-            if hasattr(self, "user"):
-                existing = Routine.objects.filter(
-                    name__iexact=name, user=self.user
-                ).exclude(pk=self.instance.pk if self.instance else None)
-
-                if existing.exists():
-                    raise ValidationError("Você já tem uma rotina com este nome.")
-
-        return name
+        return self.validar_nome_unico(name)
 
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop("user", None)
         super().__init__(*args, **kwargs)
 
 
-class ExerciseForm(forms.ModelForm):
+class ExerciseForm(UniqueNameValidatorMixin, forms.ModelForm):
     class Meta:
         model = Exercise
         fields = ["name", "description"]
@@ -63,20 +51,7 @@ class ExerciseForm(forms.ModelForm):
 
     def clean_name(self):
         name = self.cleaned_data.get("name")
-        if name:
-            name = name.strip()
-            if len(name) < 2:
-                raise ValidationError("Nome deve ter pelo menos 2 caracteres.")
-
-            if hasattr(self, "user"):
-                existing = Exercise.objects.filter(
-                    name__iexact=name, user=self.user
-                ).exclude(pk=self.instance.pk if self.instance else None)
-
-                if existing.exists():
-                    raise ValidationError("Você já tem um exercício com este nome.")
-
-        return name
+        return self.validar_nome_unico(name)
 
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop("user", None)
@@ -100,9 +75,7 @@ class RoutineExerciseForm(forms.ModelForm):
 
     def clean_sets(self):
         sets = self.cleaned_data.get("sets")
-        if sets is not None and (sets < 1 or sets > 20):
-            raise ValidationError("Número de séries deve estar entre 1 e 20.")
-        return sets
+        return NumericValidatorMixin.validar_series(sets)
 
     def clean_exercise(self):
         exercise = self.cleaned_data.get("exercise")
@@ -173,15 +146,11 @@ class SetLogForm(forms.ModelForm):
 
     def clean_weight(self):
         weight = self.cleaned_data.get("weight")
-        if weight is not None and (weight < 0 or weight > 1000):
-            raise ValidationError("Peso deve estar entre 0 e 1000 kg.")
-        return weight
+        return NumericValidatorMixin.validar_peso(weight)
 
     def clean_reps(self):
         reps = self.cleaned_data.get("reps")
-        if reps is not None and (reps < 1 or reps > 1000):
-            raise ValidationError("Número de repetições deve estar entre 1 e 1000.")
-        return reps
+        return NumericValidatorMixin.validar_repeticoes(reps)
 
 
 class StartWorkoutForm(forms.Form):

@@ -1,19 +1,39 @@
 {% extends "base.html" %}
 
-{% block title %}Confirmar Exclusão - {{ block.super }}{% endblock %}
+{% block title %}{% block delete_title %}Confirmar Exclusão{% endblock %} - {{ block.super }}{% endblock %}
 
 {% block content %}
   <div class="row justify-content-center">
     <div class="col-md-8">
       <div class="card">
         <div class="card-body">
-          <h2 class="card-title">Confirmar Exclusão</h2>
-          <p>{% block delete_message %}{% endblock %}</p>
+          <h2 class="card-title">
+            <i class="bi bi-exclamation-triangle text-warning me-2"></i>
+            {% block delete_header %}Confirmar Exclusão{% endblock %}
+          </h2>
+
+          <div class="alert alert-warning" role="alert">
+            {% block delete_message %}{% endblock %}
+          </div>
+
           {% block warning_message %}{% endblock %}
+
+          {% block additional_info %}{% endblock %}
+
           <form method="post">
             {% csrf_token %}
-            <button type="submit" class="btn btn-danger">Sim, excluir</button>
-            <a href="{% block cancel_url %}{% endblock %}" class="btn btn-secondary">Cancelar</a>
+            {% block form_fields %}{% endblock %}
+
+            <div class="d-flex gap-2 mt-4">
+              <button type="submit" class="btn btn-danger">
+                <i class="bi bi-trash me-1"></i>
+                {% block confirm_text %}Sim, excluir{% endblock %}
+              </button>
+              <a href="{% block cancel_url %}{% endblock %}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left me-1"></i>
+                Cancelar
+              </a>
+            </div>
           </form>
         </div>
       </div>
